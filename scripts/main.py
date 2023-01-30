@@ -66,8 +66,6 @@ def get_site_assignments_approval(text):
         #run code
         user_approval = get_input_from_user(does_this_work, yes_no_error, ['yes', 'no'])
 
-def split_at_80_characters(text):
-    pass
 def separate_stages():
     print("\n\n-----------------------------------------------------------\n\n")
 
