@@ -10,7 +10,7 @@ Before learning about how to use this script, here are the constraints of each s
 <li>
     <ol>Has at most 5 people </ol>
     <ol>Has at max 1 staff member who is NOT a Site Leader </ol>
-    <ol>Has 1 site leader and 1 driver(not necessarily mutually exclusive)<ol>
+    <ol>Has 1 site leader and 1 driver(not necessarily mutually exclusive)</ol>
 </li>
 <br>
 <br>
