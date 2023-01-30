@@ -7,11 +7,11 @@ This folder contains the necessary python files, excel templates, and google for
 
 # Constraints of this script
 Before learning about how to use this script, here are the constraints of each site that are accounted for: <br>
-<li>
-    <ol>Has at most 5 people </ol>
-    <ol>Has at max 1 staff member who is NOT a Site Leader </ol>
-    <ol>Has 1 site leader and 1 driver(not necessarily mutually exclusive)</ol>
-</li>
+<ol>
+    <li>Has at most 5 people </li>
+    <li>Has at max 1 staff member who is NOT a Site Leader </li>
+    <li>Has 1 site leader and 1 driver(not necessarily mutually exclusive)</li>
+</ol>
 <br>
 <br>
 <br>
