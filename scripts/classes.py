@@ -153,6 +153,7 @@ class District:
         for site in school.sites:
             school.remove_site(site)
         names_to_schools.pop(school.name)
+        self.schools.pop(school.name)
 
 
 
@@ -180,6 +181,9 @@ class School:
                  time: str):
         """
         Adds a site to the list of sites belonging to a School instance.
+
+        Returns:
+            new_site (Site): new Site instance
         """
 
         # TODO: Decide whether site_name will be used or not.
@@ -188,10 +192,11 @@ class School:
         new_site = Site(name, time, self.district)
         self.sites.append(new_site)
         add_to_times_to_sites(time, new_site)
+        return new_site
 
     def remove_site(self,
-                    site: Site) -> None:
-        """
+                    site) -> None:
+        """`
         Removes site from any sort of record or dictionary.
         Clears site of all members.
         Removes site id and site from the ids_to_sites dictionary
@@ -554,7 +559,7 @@ def create_site_arrangements(people: List[DecalMember],
 
 def add_to_times_to_sites(time: str,
                           site: Site):
-    if time in times_to_sites.keys():
+    if time not in times_to_sites.keys():
         times_to_sites[time] = [site]
     else:
         times_to_sites[time].append(site)
@@ -563,8 +568,8 @@ def remove_from_times_to_sites(time: str,
                                site: Site):
 
     if time not in times_to_sites.keys():
-        raise Exception(f"Time '{time}' is not in the '
-                        'times_to_sites dictionary")
+        raise Exception(f"Time '{time}' is not in the "
+                        "times_to_sites dictionary")
     else:
         sites = times_to_sites[time]
         if len(sites) == 1:
