@@ -1,5 +1,7 @@
 # What is this and why should it be used?
 This folder contains the necessary python files, excel templates, and google form template links to automate as much of site coordination as possible.
+
+Template Folder: https://drive.google.com/drive/folders/1SlLPxKwhpydhOq3QXoMPK-MlppTY8rFf?usp=drive_link
 <br>
 <br>
 <br>

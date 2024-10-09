@@ -1,4 +1,4 @@
-from scripts.site_assignments import *
+from archived.site_assignments import *
 #Reused
 complete_this_stage_later = lambda x: \
     "If you need more time to complete these instructions before proceeding, press Ctrl-C and then the 'Enter' button to exit. The next time you run this program, you need to start from Stage {}\n".format(x)
@@ -91,4 +91,3 @@ if __name__ == "__main__":
         print(end_text)
 
 
-    

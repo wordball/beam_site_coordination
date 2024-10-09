@@ -4,10 +4,6 @@
         "editor.defaultFormatter": "ms-python.python",
         "editor.formatOnType": true
     },
-    "python.formatting.blackArgs": [
-        "--line-length",
-        "79"
-    ],
     "breadcrumbs.enabled": true,
     "denigma.multi line": "Always ask me",
     "editor.codeActionsOnSave": {},

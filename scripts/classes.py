@@ -1,6 +1,7 @@
 import pandas as pd
 import re
 from typing import Optional, Dict, Tuple, List, Union, Literal
+from data_preprocessing import initialize_empty_site_map
 import time
 from typeguard import typechecked
 
@@ -19,13 +20,14 @@ from typeguard import typechecked
 times_to_sites = {} # Maps times to a list of sites that operate at that time
 ids_to_sites = {} # Maps IDs to a list of sites
 names_to_schools = {}
+names_to_districts = {}
 
 # Classes for each person in decal
-# TODO: Are these dictionaries necessary.
+# TODO: Are these dictionaries necessary?
 # TODO: If not, delete all references to these dictionaries.
-names_to_site_leaders = {} # Maps names of site leaders to their instances
-names_to_nonSL_staff_members = {} # Maps names of staff members who are NOT site leaders to their instances
-names_to_nonstaff = {} # Maps names of nonstaff members to their instances
+names_to_site_leaders = {}
+names_to_nonSL_staff_members = {}
+names_to_nonstaff = {}
 names_to_people = {}
 
 
@@ -36,6 +38,7 @@ MIN_NONSTAFF_PER_SITE = 3
 MAX_NONSTAFF_PER_SITE = 4
 MIN_PEOPLE_PER_SITE = 4
 MAX_PEOPLE_PER_SITE = 5
+
 
 
 @typechecked
@@ -62,7 +65,8 @@ class DecalMember:
         self.assigned_site = None
         self.add_to_record()
 
-    def add_to_record(self): # TODO: Is this necessary?
+    def add_to_record(self):
+        names_to_people[self.name] = self
         names_to_nonstaff[self.name] = self
 
 
@@ -120,7 +124,8 @@ class StaffMember(DecalMember):
         super().__init__(name, can_drive, availabilities)
         self.in_staff = True
 
-    def add_to_record(self): # TODO: Is this necessary?
+    def add_to_record(self):
+        names_to_people[self.name] = self
         names_to_nonSL_staff_members[self.name] = self
 
 @typechecked
@@ -144,7 +149,8 @@ class SiteLeader(StaffMember):
         self.in_staff = True
         self.leads_site = True
 
-    def add_to_record(self): # TODO: is this necessary
+    def add_to_record(self):
+        names_to_people[self.name] = self
         names_to_site_leaders[self.name] = self
 
 @typechecked
@@ -163,6 +169,13 @@ class District:
                  name:str):
         self.name = name
         self.schools = {}
+        self.add_to_record()
+
+    def add_to_record(self):
+        names_to_districts[self.name] = self
+
+    def remove_from_record(self):
+        names_to_districts.pop(self.name)
 
     def add_school(self,
                    name:str):
@@ -175,7 +188,6 @@ class District:
         """
         new_school = School(name, self)
         self.schools[name] = new_school
-        names_to_schools[name] = new_school
         return new_school
 
     def remove_school(self,
@@ -185,10 +197,16 @@ class District:
         Eliminates the name of the site and the Site object itself from the
         names_to_schools dictionary.
         """
-        for site in school.sites:
-            school.remove_site(site)
-        names_to_schools.pop(school.name)
+        school.remove_all_sites()
+        school.remove_from_record()
         self.schools.pop(school.name)
+
+    def remove_all_schools(self):
+        """
+        Removes all schools
+        """
+        for school in self.schools:
+            self.remove_school(school)
 
 
 @typechecked
@@ -210,6 +228,7 @@ class School:
         self.name = name
         self.sites = []
         self.district = district
+        self.add_to_record()
 
     def add_site(self,
                  name: str,
@@ -226,8 +245,13 @@ class School:
         # TODO: presence or lack of a Site name
         new_site = Site(name, time, self.district)
         self.sites.append(new_site)
-        add_to_times_to_sites(time, new_site)
         return new_site
+
+    def add_to_record(self):
+        names_to_schools[self.name] = self
+
+    def remove_from_record(self):
+        names_to_schools.pop(self.name)
 
     def remove_site(self,
                     site) -> None:
@@ -245,8 +269,7 @@ class School:
             None
         """
         site.clear()
-        ids_to_sites.pop(site.id)
-        remove_from_times_to_sites(site.time, site)
+        site.remove_from_record()
         self.sites.remove(site)
 
     def remove_all_sites(self):
@@ -310,7 +333,14 @@ class Site:
         self.has_driver = False
         self.is_full = False
         self.assign_site_id()
+        self.add_to_record()
 
+    def add_to_record(self):
+        add_to_times_to_sites(self.time, self)
+
+    def remove_from_record(self):
+        ids_to_sites.pop(self.id)
+        remove_from_times_to_sites(self.time, self)
 
     def assign_site_id(self):
         """
@@ -593,7 +623,9 @@ class SiteArrangement:
                 self.site_assignments[site.id] = site.get_member_names()
         return self.site_assignments
 
-    def unfreeze(self) -> None:
+    def unfreeze(self,
+                 empty_site_map: Optional[pd.DataFrame] = None,
+                 save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
         Takes the site assignments in self.site_assignments and
         actually assigns each DecalMember instance to their respective
@@ -602,10 +634,26 @@ class SiteArrangement:
         Note that  'DecalMember instance' also refers to
         StaffMember and SiteLeader istances.
 
+        Args:
+            save_path (Optional[str]): if path is None --> returns None
+                if path is not None --> populate_site_map is called
+
         Raises:
-            Exception: _description_
+            Exception: Given an issue with the unfreeze method or if
+                       either the save apth or the site map is None/not None
+                       but not both.
+
+        Returns:
+            None
         """
-        clear_all_sites()
+        assert check_all_sites_are_clear(), (
+            "Unfreezing cannot take place until all sites are clear")
+
+        if (save_path is None and empty_site_map is not None or
+            save_path is not None and empty_site_map is None):
+            raise Exception("Both the save path and the site map need to be "
+                            "None or not None.")
+
         for site_id in self.site_assignments.keys():
             site = ids_to_sites[site_id]
             member_names = self.site_assignments[site_id]
@@ -618,12 +666,101 @@ class SiteArrangement:
                           "was not validated.")
                     raise Exception("Issue with the unfreeze method!")
 
+        if save_path is not None:
+            self.populate_site_map(empty_site_map,
+                                   save_path)
+
+    def populate_site_map(self,
+                          site_map: pd.DataFrame,
+                          save_path: str) -> pd.DataFrame:
+        """
+        Populates an empty site map with times arranged in order of day
+        and time.
+
+        Args:
+            save_path (str): Excel file path to save populated site map
+
+        Returns:
+            pd.DataFrame: _description_
+        """
+        assert ".xlsx" in save_path, (
+            "The path to save the file is not an Excel file")
+
+        index = 0
+
+        # Iterate through each time slot
+        for site_time in times_to_sites.keys():
+            sites = times_to_sites[site_time]
+
+            # Iterate through each site
+            for site in sites:
+
+                # Get the site name
+                site_name = site.name
+                site_map.loc[index, 'Site'] = site_name
+
+                # Get the school name
+                school_name = site.school.name
+                site_map.loc[index, 'School'] = school_name
+
+                # Get the district name
+                district_name = site.school.district.name
+                site_map.loc[index, 'District'] = district_name
+
+                # Get the day and time
+                site_day, time_slot = get_day_and_time(site_time)
+                site_map.loc[index, 'Day'] = site_day
+                site_map.loc[index, 'Time'] = time_slot
+
+                # Get the SL name
+                sl_name = site.get_SL_name()
+                site_map.loc[index, 'Site Leader'] = sl_name
+
+                # Get the driver's/drivers' name(s)
+                driver_names = site.get_driver_names()
+                site_map.loc[index, 'Driver(s)'] = ', '.join(driver_names)
+
+                # Get the staff member name
+                if site.get_num_staff() == 2:
+                    non_SL_staff_name = site.get_non_SL_staff_name()
+                    site_map.loc[index, 'Staff Member'] = non_SL_staff_name
+
+                # Get the decal member names
+                for j, nonstaff_name in enumerate(site.get_nonstaff_names()):
+                    site_map.loc[index, f'Decal Member {j+1}'] = nonstaff_name
+
+                # Update the index
+                index+=1
+
+        # Save site map to an Excel file
+        site_map.to_excel(save_path)
+
+        return site_map
+
+
     def __str__(self):
         for id in self.site_assignments.keys():
             site = ids_to_sites[id]
             names = self.site_assignments[id]
             print(f"Site ID #{id}: {site.name}")
             print(f"People: {names}")
+
+@typechecked
+def get_day_and_time(site_time:str) -> Tuple[str, str]:
+    """
+    Since the site times are obtained from the empty site map,
+    the site times must have been standardized prior to using this
+    function.
+
+    Args:
+        site_time (str): in the format of [Day] [Time Slot]
+
+    Returns:
+        day, time_slot (Tuple[str, str])
+    """
+    # TODO
+    pass
+
 
 def clear_all_sites() -> None:
     """
@@ -641,9 +778,35 @@ def eliminate_all_sites() -> None:
     Returns:
         None
     """
-    for school_name in names_to_schools.key():
-        school = names_to_schools[school_name]
+    for school in names_to_schools.values():
         school.remove_all_sites()
+
+def eliminate_all_schools() -> None:
+    """
+    Eliminate all schools from any dictionary or record.
+
+    Returns:
+        None
+    """
+    for district in list(names_to_districts.values()):
+        district.remove_all_schools()
+
+def eliminate_all_districts() -> None:
+    """
+    Eliminates all districts and their schools/sites from any dictionary or
+    record.
+
+    Returns:
+        None
+    """
+    for district in list(names_to_districts.values()):
+        district.remove_all_schools()
+        district.remove_from_record()
+
+
+
+
+
 
 @typechecked
 def order_by_availabilities(people:List[DecalMember]) -> List[DecalMember]:
@@ -744,12 +907,32 @@ def order_potential_sites(person: DecalMember,
 
     if person.drives:
         return sorted(sites,
-                      key = lambda site: (site.get_num_drivers(),
-                                          5-site.get_num_people()))
+                      key = lambda site: (
+                          site.get_num_drivers(),
+                          MAX_PEOPLE_PER_SITE-site.get_num_people()))
     else:
         return sorted(sites,
-                      key = lambda site: (5-site.get_num_drivers(),
-                                          site.get_num_people()))
+                      key = lambda site: (
+                          MAX_PEOPLE_PER_SITE-site.get_num_drivers(),
+                          site.get_num_people()))
+
+@typechecked
+def check_all_sites_are_clear() -> bool:
+    """
+    Checks whether all sites are clear
+
+    Returns:
+        bool: whether sites are clear (aka no people in the members attribute
+              and every person has an assigned_site attribute equal to None)
+    """
+
+    for site in ids_to_sites.values():
+        if site.members != []:
+            return False
+
+    for person in names_to_people.values():
+        if person.assigned_site is not None:
+            return False
 
 @typechecked
 def check_all_sites_are_valid() -> bool:
@@ -894,6 +1077,8 @@ def create_site_arrangements(
     print(f"Creating {len(working_site_arrangements)} site arrangements "
           f"took {elapsed_mins} minutes and {elapsed_sec} seconds.")
 
+    # In the case that there are no people left and the sites are not valid,
+    # an empty list will be returned.
     return working_site_arrangements
 
 @typechecked

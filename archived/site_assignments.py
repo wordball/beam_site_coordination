@@ -1,6 +1,6 @@
 #---------------Site Leader Assignments-----------------#
 from scripts.classes import *
-""" 
+"""
 Assume we have each site leader instance along with each potential site created.
 We need to figure out which site leader goes to which site. Once this is figured out,
 we can reduce the number of "potential sites" to the number of actual sites.
@@ -18,7 +18,7 @@ working_SL_arrangements = []
 
 
 
-""" The following "check" functions and other variables ensure that each site 
+""" The following "check" functions and other variables ensure that each site
     meets the following requirements:
         1. The number of sites per location is between 1 and 3(inclusive)
         2. The number of non-site leaders who are also in staff is at most 1 per site
@@ -26,14 +26,10 @@ working_SL_arrangements = []
         4. There is at least one driver per site.
 """
 
-min_staff, max_staff = 0, 1
-min_nonstaff, max_nonstaff = 2, 3
+
 min_sites_per_location, max_sites_per_location = 1, 3
 
-def check_num_SLs(min_SL = 1, max_SL = 4):
-    above_or_equal_min = all([location.num_site_leaders() >= min_SL for location in locations.values()])
-    below_or_equal_min = all([location.num_site_leaders() <= max_SL for location in locations.values()])
-    return above_or_equal_min and below_or_equal_min
+
 
 def check_num_staff_or_nonstaff(min_num, max_num, decal_type): #Assumes each site has a SL
     assert decal_type in ('staff', 'nonstaff'), 'Wrong string fed into decal_type argument'
@@ -51,7 +47,7 @@ def check_num_drivers():
 
 def check_sites():
     correct_num_sites = check_num_SLs()
-    correct_num_staff = check_num_staff_or_nonstaff(min_staff, max_staff, 'staff') 
+    correct_num_staff = check_num_staff_or_nonstaff(min_staff, max_staff, 'staff')
     correct_num_nonstaff = check_num_staff_or_nonstaff(min_nonstaff, max_nonstaff, 'nonstaff')
     correct_num_drivers = check_num_drivers()
     return correct_num_sites and correct_num_drivers and correct_num_staff and correct_num_nonstaff
@@ -74,8 +70,8 @@ def initialize_df():
     index = [i for i in range(len(names_to_site_leaders.keys()))]
     df = pd.DataFrame(index = index, columns = columns)
     return df
-    
-    
+
+
 def create_df():
     df = initialize_df()
     for i, sl in enumerate(names_to_site_leaders.values()):
@@ -108,7 +104,7 @@ def create_df():
 #This variable, along with max_SL_arrangements, is used to prevent the
 #functions which find arrangements from running too long.
 #Re-initialize to 0 every time you run any of the functions that use this variable
-num_permutations = 0 
+num_permutations = 0
 max_SL_arrangements = 10
 
 def find_SL_arrangements(ordered_SL, assigned = []):
@@ -151,7 +147,7 @@ def find_staff_arrangements(ordered_staff, assigned = []): #refers to non-site l
                             site.remove_member(next_person)
             except:
                 raise KeyError('Availability {} is not found in dictionary')
-    
+
 def find_nonstaff_arrangements(ordered_nonstaff, assigned = []):
     if ordered_nonstaff == []:
         if check_sites():
