@@ -1,0 +1,59 @@
+// Inspired by https://www.youtube.com/watch?v=V0s7uQlbSRY
+{
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.python",
+        "editor.formatOnType": true
+    },
+    "breadcrumbs.enabled": true,
+    "denigma.multi line": "Always ask me",
+    "editor.codeActionsOnSave": {},
+    "editor.cursorStyle": "line",
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": true,
+    "editor.hover.enabled": true,
+    "editor.indentSize": "tabSize",
+    "editor.rulers": [
+        79,
+        99
+    ],
+    "editor.suggestSelection": "first",
+    "explorer.compactFolders": false,
+    "explorer.confirmDragAndDrop": false,
+    "files.associations": {
+        "*.o[0-9]*": "log",
+        "*.rmd": "markdown"
+    },
+    "files.autoSave": "onFocusChange",
+    "files.trimTrailingWhitespace": true,
+    "files.watcherExclude": {
+        "**/*.mat": true,
+        "**/*.nii.gz": true,
+        "**/BIDS/**": true,
+        "**/logs/**": true
+    },
+    "jupyter.interactiveWindow.creationMode": "perFile",
+    "notebook.cellToolbarLocation": {
+        "default": "right",
+        "jupyter-notebook": "left"
+    },
+    "python.analysis.typeCheckingMode": "off",
+    "tabnine.experimentalAutoImports": true,
+    "terminal.integrated.copyOnSelection": true,
+    "terminal.integrated.cursorBlinking": true,
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "terminal.integrated.enableMultiLinePasteWarning": "auto",
+    "terminal.integrated.fontSize": 18,
+    "vsintellicode.modify.editor.suggestSelection": "automaticallyOverrodeDefaultValue",
+    "window.autoDetectColorScheme": true,
+    "workbench.colorCustomizations": {
+        "terminal.foreground": "#CCCCCC"
+    },
+    "workbench.colorTheme": "Default Light+",
+    "workbench.editor.showTabs": "multiple",
+    "workbench.editorAssociations": {
+        "*.ipynb": "jupyter-notebook",
+        "*.xlsx": "default"
+    },
+    "workbench.iconTheme": "material-icon-theme",
+    "workbench.statusBar.visible": true
+}
