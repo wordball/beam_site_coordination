@@ -1,9 +1,9 @@
 import pandas as pd
 import re
 from typing import Optional, Dict, Tuple, List, Union, Literal
-from data_preprocessing import initialize_empty_site_map
 import time
 from typeguard import typechecked
+import os
 
 
 # TODO: Updates 8/10/2024
@@ -19,8 +19,8 @@ from typeguard import typechecked
 
 times_to_sites = {} # Maps times to a list of sites that operate at that time
 ids_to_sites = {} # Maps IDs to a list of sites
-names_to_schools = {}
 names_to_districts = {}
+names_to_sites = {}
 
 # Classes for each person in decal
 # TODO: Are these dictionaries necessary?
@@ -32,12 +32,14 @@ names_to_people = {}
 
 
 # Limits for number of people in staff and nonstaff
-MIN_STAFF_PER_SITE = 1
-MAX_STAFF_PER_SITE = 2
-MIN_NONSTAFF_PER_SITE = 3
-MAX_NONSTAFF_PER_SITE = 4
+MIN_STAFF_PER_SITE = 1 # 1 site leader, no other staff members
+MAX_STAFF_PER_SITE = 2 # 1 site leader and 1 other staff member
+MIN_NONSTAFF_PER_SITE = 2 # 4 people; 1 SL, 1 other staff members
+MAX_NONSTAFF_PER_SITE = 4 # 5 people; 1 SL, 0 other staff members
 MIN_PEOPLE_PER_SITE = 4
 MAX_PEOPLE_PER_SITE = 5
+
+BUSY_THRESHOLD = 3
 
 
 
@@ -46,7 +48,8 @@ class DecalMember:
     def __init__(self,
                  name: str,
                  can_drive: bool,
-                 availabilities: List[str] = []):
+                 availabilities: List[str] = [],
+                 **kwargs):
         """
         Represents each person who is a part of decal but NOT staff.
 
@@ -63,17 +66,40 @@ class DecalMember:
         self.leads_site = False
         self.availabilities = availabilities
         self.assigned_site = None
+        for key in kwargs.keys():
+            if key == 'history':
+                self.history = kwargs[key]
+            elif key == 'last_tb_test':
+                self.last_tb_test = kwargs[key]
+            elif key == 'speaks_spanish':
+                self.speaks_spanish = kwargs[key]
+            else:
+                raise Exception("When creating an instance of the person "
+                                f"named {name}, an incorrect attribute name "
+                                f"was passed in: '{key}'")
         self.add_to_record()
 
     def add_to_record(self):
+        """
+        Adds a person to the record including to any relevant dictionaries.
+        Keys are usually names. Values are the objects themselves.
+        """
         names_to_people[self.name] = self
         names_to_nonstaff[self.name] = self
 
+    def remove_from_record(self):
+        names_to_people.pop(self.name)
+        names_to_nonstaff.pop(self.name)
+        if self.assigned_site is not None:
+            self.assigned_site.remove_member(self)
 
     def add_availability(self,
                          availability: str):
         """
         Adds an availability to the list of availabilities.
+
+        Args:
+            availability (str):
         """
         self.availabilities.append(availability)
 
@@ -110,7 +136,8 @@ class StaffMember(DecalMember):
     def __init__(self,
                  name: str,
                  can_drive: bool,
-                 availabilities: List[str] = []):
+                 availabilities: List[str] = [],
+                 **kwargs):
         """
         Represents each person who is a part of staff.
 
@@ -121,19 +148,26 @@ class StaffMember(DecalMember):
             availabilities (List[str]): the list of times during which the
                                         staff member is available
         """
-        super().__init__(name, can_drive, availabilities)
+        super().__init__(name, can_drive, availabilities, **kwargs)
         self.in_staff = True
 
     def add_to_record(self):
         names_to_people[self.name] = self
         names_to_nonSL_staff_members[self.name] = self
 
+    def remove_from_record(self):
+        names_to_people.pop(self.name)
+        names_to_nonSL_staff_members.pop(self.name)
+        if self.assigned_site is not None:
+            self.assigned_site.remove_member(self)
+
 @typechecked
 class SiteLeader(StaffMember):
     def __init__(self,
                  name: str,
                  can_drive: bool,
-                 availabilities: List[str] = []):
+                 availabilities: List[str] = [],
+                 **kwargs):
         """
         Represents each person who is a part of staff and leads a site.
         Also referred to as a SL.
@@ -145,13 +179,20 @@ class SiteLeader(StaffMember):
             availabilities (List[str]): the list of times during which the
                                         SL is available
         """
-        super().__init__(name, can_drive, availabilities)
+        super().__init__(name, can_drive, availabilities, **kwargs)
         self.in_staff = True
         self.leads_site = True
 
     def add_to_record(self):
         names_to_people[self.name] = self
         names_to_site_leaders[self.name] = self
+
+    def remove_from_record(self):
+        names_to_people.pop(self.name)
+        names_to_site_leaders.pop(self.name)
+        if self.assigned_site is not None:
+            self.assigned_site.remove_member(self)
+
 
 @typechecked
 class District:
@@ -168,7 +209,7 @@ class District:
     def __init__(self,
                  name:str):
         self.name = name
-        self.schools = {}
+        self.sites = []
         self.add_to_record()
 
     def add_to_record(self):
@@ -177,81 +218,18 @@ class District:
     def remove_from_record(self):
         names_to_districts.pop(self.name)
 
-    def add_school(self,
-                   name:str):
-        """
-        Args:
-            name (str): Name of the school.
-
-        Returns:
-            new_school (School): new School instance
-        """
-        new_school = School(name, self)
-        self.schools[name] = new_school
-        return new_school
-
-    def remove_school(self,
-                      school):
-        """
-        Eliminates all sites contained within the School instance's sites list.
-        Eliminates the name of the site and the Site object itself from the
-        names_to_schools dictionary.
-        """
-        school.remove_all_sites()
-        school.remove_from_record()
-        self.schools.pop(school.name)
-
-    def remove_all_schools(self):
-        """
-        Removes all schools
-        """
-        for school in self.schools:
-            self.remove_school(school)
-
-
-@typechecked
-class School:
-    def __init__(self,
-                 name:str,
-                 district:District):
-        """
-        Represents each school that BEAM teaches at. Note that the schools
-        belongto certain districts. Each school may be assigned 1 or more
-        sites. Examples of schools include Malcolm X Elementary, Washington
-        Elementary, etc.
-
-        Args:
-            name (str): Name of the school
-            district (District): the district that the school belongs to
-        """
-
-        self.name = name
-        self.sites = []
-        self.district = district
-        self.add_to_record()
-
     def add_site(self,
                  name: str,
                  time: str):
         """
-        Adds a site to the list of sites belonging to a School instance.
+        Adds a site to the list of sites belonging to a District instance.
 
         Returns:
             new_site (Site): new Site instance
         """
-
-        # TODO: Decide whether site_name will be used or not.
-        # TODO: Ensure that the Site class definition accounts for the
-        # TODO: presence or lack of a Site name
-        new_site = Site(name, time, self.district)
+        new_site = Site(name, time, self)
         self.sites.append(new_site)
         return new_site
-
-    def add_to_record(self):
-        names_to_schools[self.name] = self
-
-    def remove_from_record(self):
-        names_to_schools.pop(self.name)
 
     def remove_site(self,
                     site) -> None:
@@ -276,7 +254,7 @@ class School:
         """
         Removes all sites
         """
-        for site in self.sites:
+        for site in self.sites[:]:
             self.remove_site(site)
 
     def get_num_sites(self) -> int:
@@ -304,12 +282,26 @@ class School:
         """
         return len([site for site in self.sites if site.is_full])
 
+
+def add_district(name) -> District:
+    """
+    Creates a District instance
+
+    Args:
+        name (str): name of the district
+
+    Returns:
+        District: district object
+    """
+    new_district = District(name)
+    return new_district
+
 @typechecked
 class Site:
     def __init__(self,
                  name: str,
                  time: str,
-                 school: School):
+                 district: District):
         """
         Refers to each site that teaches at a school.
 
@@ -322,24 +314,29 @@ class Site:
             name (str): name of the site. E.g. Harding A, Harding B, etc.
                   This feature may be deleted # TODO
             time (str): the time at which this site takes place
-            school (School): the school at which the site takes place
+            district (District): the district at which the site takes place
 
         """
-        self.name = name #location name - aka Harding NOT Harding C
+        self.name = name
         self.time = time
-        self.school = school
+        self.district = district
         self.members = []
         self.has_site_leader = False
         self.has_driver = False
         self.is_full = False
-        self.assign_site_id()
         self.add_to_record()
 
     def add_to_record(self):
+        if self.name in names_to_sites.keys():
+            raise Exception("There is more than one site with the same name: "
+                            f"{self.name}")
+        names_to_sites[self.name] = self
         add_to_times_to_sites(self.time, self)
+        self.assign_site_id()
 
     def remove_from_record(self):
         ids_to_sites.pop(self.id)
+        names_to_sites.pop(self.name)
         remove_from_times_to_sites(self.time, self)
 
     def assign_site_id(self):
@@ -371,9 +368,12 @@ class Site:
                                   DecalMember class or any of its
                                   descendant classes
         """
-        # TODO: Should I write the validate_person method as a descriptor thing
-        # TODO: or as a completely different method entirely?
 
+        if person.assigned_site is not None:
+            raise Exception(f"You cannot add {person.name} to {self.name} "
+                            "because they have already been added to "
+                            f"{person.assigned_site.name}. You can only add "
+                            "people who have not been assigned to a site yet.")
         self.members.append(person)
         person.assigned_site = self
         self.update_booleans()
@@ -419,20 +419,24 @@ class Site:
             return False
 
         # Situation 2
-        elif self.get_num_staff() == MAX_STAFF_PER_SITE and person.in_staff:
-            return False
+        if person.in_staff and not person.leads_site:
+            if not self.has_site_leader:
+                raise Exception("A SiteLeader has not been added to "
+                                f"{self.name} yet. You cannot add a regular "
+                                "StaffMember.")
+            if self.get_num_staff() == MAX_STAFF_PER_SITE and person.in_staff:
+                return False
 
         # Situations 3 and 4
-        elif self.get_num_people() == MAX_PEOPLE_PER_SITE:
+        if self.get_num_people() == MAX_PEOPLE_PER_SITE:
             return False
 
         # Situation 5
-        elif (self.get_num_people() == MAX_PEOPLE_PER_SITE-1 and
+        if (self.get_num_people() == MAX_PEOPLE_PER_SITE-1 and
               not self.has_driver and not person.drives):
             return False
 
-        else:
-            return True
+        return True
 
 
     def remove_member(self,
@@ -526,32 +530,35 @@ class Site:
         """
         return [person for person in self.members if person.leads_site][0].name
 
-    def get_driver_name(self) -> str:
+    def get_driver_names(self) -> List:
         """
-        Returns the name of the driver.
+        Returns the name of drivers ordered by seniority
         imo, the SiteLeader/StaffMember should ideally be the primary driver
         with the decal members being backup drivers.
         # TODO: Will this be problematic if there is more than 1 driver?
         """
-        sl_name = self.get_SL_name()
-        sl = names_to_site_leaders[sl_name]
-        driver_found = False
 
-        if sl.drives:
-            return sl_name
+        driver_names = []
+
+        if self.has_site_leader:
+            sl_name = self.get_SL_name()
+            sl = names_to_site_leaders[sl_name]
+            if sl.drives:
+                driver_names.append(sl_name)
 
         if self.get_num_staff() == 2:
             non_SL_staff_name = self.get_non_SL_staff_name()
-            non_SL = names_to_nonSL_staff_members[non_SL_staff_name]
-            if non_SL.drives:
-                return non_SL_staff_name
-            else:
-                pass
+            non_SL_staff = names_to_nonSL_staff_members[non_SL_staff_name]
+            if non_SL_staff.drives:
+                driver_names.append(non_SL_staff_name)
 
-        if not driver_found:
+        if self.get_num_nonstaff() > 0:
             nonstaff_names = self.get_nonstaff_names()
             nonstaff = [names_to_nonstaff[name] for name in nonstaff_names]
-            return [person for person in nonstaff if person.drives][0]
+            driver_names.extend([person.name for person in nonstaff if
+                                 person.drives])
+
+        return driver_names
 
     def get_non_SL_staff_name(self) -> str:
         """
@@ -562,7 +569,7 @@ class Site:
         As a result, it is imperative that the method get_num_staff is checked
         first before using the get_non_SL_staff_name method.
         """
-        return [person for person in self.members
+        return [person.name for person in self.members
                 if person.in_staff and not person.leads_site][0]
 
     def get_nonstaff_names(self) -> List[str]:
@@ -577,13 +584,14 @@ class Site:
         Returns:
             List[str]: list of the names of each member in self.members
         """
-        if self.get_num_staff() == 2:
-            return [self.get_SL_name(),
-                    self.get_non_SL_staff_name()] + self.get_nonstaff_names()
-        elif self.get_num_staff() == 1:
-            return [self.get_SL_name()] + self.get_nonstaff_names()
-        else:
-            return self.get_nonstaff_names()
+        member_names = []
+        if self.has_site_leader:
+            member_names.append(self.get_SL_name())
+        if any([person for person in self.members if person.in_staff and
+                not person.leads_site]):
+            member_names.append(self.get_non_SL_staff_name())
+        member_names.extend(self.get_nonstaff_names())
+        return member_names
 
     def clear(self) -> None:
         """
@@ -595,7 +603,6 @@ class Site:
             member.assigned_site = None
         self.members = []
         self.update_booleans()
-        return self
 
 
 @typechecked
@@ -624,12 +631,17 @@ class SiteArrangement:
         return self.site_assignments
 
     def unfreeze(self,
-                 empty_site_map: Optional[pd.DataFrame] = None,
+                 site_map: Optional[pd.DataFrame] = None,
                  save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
         Takes the site assignments in self.site_assignments and
         actually assigns each DecalMember instance to their respective
         Site instance.
+
+        # TODO: If the site_map is not None, you need to ensure
+        # TODO: that you insert the entries in the right rows
+        # TODO: In other words, the populated site map should look
+        # TODO: exactly as you would read it. --> Done via
 
         Note that  'DecalMember instance' also refers to
         StaffMember and SiteLeader istances.
@@ -649,12 +661,10 @@ class SiteArrangement:
         assert check_all_sites_are_clear(), (
             "Unfreezing cannot take place until all sites are clear")
 
-        if (save_path is None and empty_site_map is not None or
-            save_path is not None and empty_site_map is None):
-            raise Exception("Both the save path and the site map need to be "
-                            "None or not None.")
+        if site_map is None:
+            site_map = initialize_empty_site_map()
 
-        for site_id in self.site_assignments.keys():
+        for site_id in sorted(list(self.site_assignments.keys())):
             site = ids_to_sites[site_id]
             member_names = self.site_assignments[site_id]
             people = [names_to_people[name] for name in member_names]
@@ -666,15 +676,14 @@ class SiteArrangement:
                           "was not validated.")
                     raise Exception("Issue with the unfreeze method!")
 
-        if save_path is not None:
-            self.populate_site_map(empty_site_map,
-                                   save_path)
+        self.populate_site_map(site_map,
+                               save_path)
 
     def populate_site_map(self,
                           site_map: pd.DataFrame,
-                          save_path: str) -> pd.DataFrame:
+                          save_path: Optional[str]) -> pd.DataFrame:
         """
-        Populates an empty site map with times arranged in order of day
+        Populates a site map with times arranged in order of day
         and time.
 
         Args:
@@ -683,58 +692,54 @@ class SiteArrangement:
         Returns:
             pd.DataFrame: _description_
         """
-        assert ".xlsx" in save_path, (
-            "The path to save the file is not an Excel file")
+        if save_path is not None:
+            if ".xlsx" not in save_path:
+                raise Exception("The save path for the created site map "
+                                f"'({save_path})' needs to be an excel file "
+                                "path with the .xlsx extension")
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-        index = 0
 
         # Iterate through each time slot
-        for site_time in times_to_sites.keys():
-            sites = times_to_sites[site_time]
+        # The id will be used as the index when populating the site map
+        for id, site in ids_to_sites.items():
 
-            # Iterate through each site
-            for site in sites:
+            # Get the site name
+            site_name = site.name
+            site_map.loc[id, 'Site'] = site_name
 
-                # Get the site name
-                site_name = site.name
-                site_map.loc[index, 'Site'] = site_name
+            # Get the district name
+            district_name = site.district.name
+            site_map.loc[id, 'District'] = district_name
 
-                # Get the school name
-                school_name = site.school.name
-                site_map.loc[index, 'School'] = school_name
+            # Get the day and time
+            site_day, time_slot = get_day_and_time(site.time) # TODO: Ambiguous naming
+            site_map.loc[id, 'Day'] = site_day
+            site_map.loc[id, 'Time'] = time_slot
 
-                # Get the district name
-                district_name = site.school.district.name
-                site_map.loc[index, 'District'] = district_name
-
-                # Get the day and time
-                site_day, time_slot = get_day_and_time(site_time)
-                site_map.loc[index, 'Day'] = site_day
-                site_map.loc[index, 'Time'] = time_slot
-
-                # Get the SL name
+            # Get the SL name
+            if site.has_site_leader:
                 sl_name = site.get_SL_name()
-                site_map.loc[index, 'Site Leader'] = sl_name
+                site_map.loc[id, 'Site Leader'] = sl_name
 
-                # Get the driver's/drivers' name(s)
+            # Get the driver's/drivers' name(s)
+            if site.has_driver:
                 driver_names = site.get_driver_names()
-                site_map.loc[index, 'Driver(s)'] = ', '.join(driver_names)
+                site_map.loc[id, 'Driver(s)'] = ', '.join(driver_names)
 
-                # Get the staff member name
-                if site.get_num_staff() == 2:
-                    non_SL_staff_name = site.get_non_SL_staff_name()
-                    site_map.loc[index, 'Staff Member'] = non_SL_staff_name
+            # Get the staff member name
+            if site.get_num_staff() == 2:
+                non_SL_staff_name = site.get_non_SL_staff_name()
+                site_map.loc[id, 'Staff Member'] = non_SL_staff_name
 
-                # Get the decal member names
-                for j, nonstaff_name in enumerate(site.get_nonstaff_names()):
-                    site_map.loc[index, f'Decal Member {j+1}'] = nonstaff_name
-
-                # Update the index
-                index+=1
+            # Get the decal member names
+            for j, nonstaff_name in enumerate(site.get_nonstaff_names()):
+                site_map.loc[id, f'Decal Member {j+1}'] = nonstaff_name
+            site_map.loc[id, 'Number of Mentors'] = len(site.members)
 
         # Save site map to an Excel file
-        site_map.to_excel(save_path)
-
+        if save_path:
+            site_map.to_excel(save_path, index=False)
         return site_map
 
 
@@ -746,7 +751,7 @@ class SiteArrangement:
             print(f"People: {names}")
 
 @typechecked
-def get_day_and_time(site_time:str) -> Tuple[str, str]:
+def get_day_and_time(string_day_and_time:str) -> Tuple[str, str]:
     """
     Since the site times are obtained from the empty site map,
     the site times must have been standardized prior to using this
@@ -758,8 +763,17 @@ def get_day_and_time(site_time:str) -> Tuple[str, str]:
     Returns:
         day, time_slot (Tuple[str, str])
     """
-    # TODO
-    pass
+    # Eliminate leading and trailing whitespace
+    string_day_and_time = string_day_and_time.strip()
+
+    # Split the day and time using regex
+    match = re.match(r'([a-zA-Z]+)\s*(.+)', string_day_and_time)
+
+    if not match:
+        raise ValueError(f"Invalid format: {string_day_and_time}")
+
+    day, time_slot = match.groups()
+    return tuple([day, time_slot])
 
 
 def clear_all_sites() -> None:
@@ -778,30 +792,38 @@ def eliminate_all_sites() -> None:
     Returns:
         None
     """
-    for school in names_to_schools.values():
-        school.remove_all_sites()
-
-def eliminate_all_schools() -> None:
-    """
-    Eliminate all schools from any dictionary or record.
-
-    Returns:
-        None
-    """
-    for district in list(names_to_districts.values()):
-        district.remove_all_schools()
+    for district in names_to_districts.values():
+        district.remove_all_sites()
 
 def eliminate_all_districts() -> None:
     """
-    Eliminates all districts and their schools/sites from any dictionary or
+    Eliminates all districts and their sites from any dictionary or
     record.
 
     Returns:
         None
     """
     for district in list(names_to_districts.values()):
-        district.remove_all_schools()
+        district.remove_all_sites()
         district.remove_from_record()
+
+def eliminate_all_people() -> None:
+    """
+    Eliminates all people and removes them from relevant dictionaries
+
+    Raises:
+        Exception: _description_
+
+    Returns:
+        None
+    """
+    people = list(names_to_people.values())
+    for person in people:
+        person.remove_from_record()
+
+def eliminate_everything() -> None:
+    eliminate_all_districts()
+    eliminate_all_people()
 
 
 
@@ -842,14 +864,14 @@ def create_priority_list(people:List[DecalMember]) -> List[DecalMember]:
 
     @typechecked
     def order_group(group:List[DecalMember],
-                    busy_threshold:int = 3) -> List[DecalMember]:
+                    busy_threshold:int = BUSY_THRESHOLD) -> List[DecalMember]:
         """
         Orders the group based on the following priority:
 
 
         Priority is as follows:
             a. SiteLeaders, then staff, then decal
-            b. 1-2 availabilities, drives, order by availabilities
+            b. 1-3 availabilities, drives, order by availabilities
 
         Args:
             group (List[DecalMember]): group of people belonging to one class
@@ -868,7 +890,7 @@ def create_priority_list(people:List[DecalMember]) -> List[DecalMember]:
             [person for person in remaining if person.drives])
 
         remaining = order_by_availabilities(
-            [person for person in group if person not in drives])
+            [person for person in remaining if person not in drives])
 
         return least_availabilities + drives + remaining
 
@@ -876,7 +898,7 @@ def create_priority_list(people:List[DecalMember]) -> List[DecalMember]:
         [person for person in people if person.leads_site])
     staff_no_SL = order_group(
         [person for person in people if person.in_staff and
-                not person.leads_site])
+         not person.leads_site])
     decal_no_staff = order_group(
         [person for person in people if not person.in_staff])
 
@@ -916,7 +938,6 @@ def order_potential_sites(person: DecalMember,
                           MAX_PEOPLE_PER_SITE-site.get_num_drivers(),
                           site.get_num_people()))
 
-@typechecked
 def check_all_sites_are_clear() -> bool:
     """
     Checks whether all sites are clear
@@ -934,13 +955,19 @@ def check_all_sites_are_clear() -> bool:
         if person.assigned_site is not None:
             return False
 
-@typechecked
+    return True
+
+
 def check_all_sites_are_valid() -> bool:
     """
     Does not assume sites are full.
 
     Checks whether there are any errors with respect to the
     Site.validate_person instance method.
+
+    Note that this should always return True.
+    In the case that one of the cases is broken, then an exception will be
+    raised.
 
     Returns:
         True
@@ -954,30 +981,44 @@ def check_all_sites_are_valid() -> bool:
     # Iterate through each site
     for site in all_sites:
 
-        # Check number of SLs
-        if site.get_num_site_leaders() > 1:
-            raise Exception(f"Site {site.name}[ID: {site.id}] is not valid.")
-            # return False
+        # Check number of site leaders added to the site
+        site_leaders = [person for person in site.members if person.leads_site]
+        if len(site_leaders) > 1:
+            raise Exception("Too many site leaders added to the site\n"
+                            f"Site Name: {site.name}. "
+                            "Site Leaders: "
+                            f"{[person.name for person in site_leaders]}")
 
         # Check number of non-SL staff people
         if site.get_num_staff() > MAX_STAFF_PER_SITE:
-            raise Exception(f"Site {site.name}[ID: {site.id}] is not valid.")
-            # return False
+            nonSL_staff = [person.name for person in site.members if
+                           person.in_staff and not person.leads_site]
+            raise Exception(f"Site {site.name}[ID: {site.id}] has too many "
+                            "staff people assigned. They include the "
+                            f"following site leader {site.get_SL_name()} "
+                            f"and other staff members {nonSL_staff}")
 
         # Check number of nonstaff people
         if site.get_num_nonstaff() > MAX_NONSTAFF_PER_SITE:
-            raise Exception(f"Site {site.name}[ID: {site.id}] is not valid.")
-            # return False
+            raise Exception(f"Site {site.name}[ID: {site.id}] has too many "
+                            f"decal members: {site.get_nonstaff_names()}")
 
         # Check number of people
         if site.get_num_people() > MAX_PEOPLE_PER_SITE:
             raise Exception(f"Site {site.name}[ID: {site.id}] is not valid.")
             # return False
 
+        # Ensure each person can actually attend the site time
+        for person in site.members:
+            if site.time not in person.availabilities:
+                raise Exception(f"{person.name} was added to {site.name} "
+                                "but they can't make it.\nSite Time: "
+                                f"{site.time}")
+
     return True
 
 @typechecked
-def check_all_sites_are_full() -> bool:
+def check_all_sites_are_full() -> bool: #TODO: Establish whether this is truly necessary or whether this is just space being taken up within create_site_arrangements
     """
     Checks that all sites are full
 
@@ -988,6 +1029,19 @@ def check_all_sites_are_full() -> bool:
         if not site.is_full:
             return False
     return True
+
+def check_each_person_has_been_assigned() -> bool:
+    """
+    Checks if each person has been assigned to a site.
+
+    Returns:
+        bool
+    """
+    for person in list(names_to_people.values()):
+        if person.assigned_site is None:
+            return False
+    return True
+
 
 @typechecked
 def create_site_arrangements(
@@ -1005,7 +1059,7 @@ def create_site_arrangements(
         - too many people -> []
 
     Args:
-        people (List[DecalMember]): _description_
+        people (List[DecalMember]): all people involved
         mode (Literal['full', 'partial']): indicates one of the two modes
             'full':    All sites must be having a driver and the appropriate
                        number of each class that results in a total of 4-5
@@ -1017,11 +1071,6 @@ def create_site_arrangements(
         List[SiteArrangement]: _description_
     """
 
-    assert all([person.assigned_site is None for person in people])
-
-    # Record start time
-    start_time = time.time()
-
     # Initialize an empty list of working site arrangements
     working_site_arrangements = []
 
@@ -1030,52 +1079,59 @@ def create_site_arrangements(
         [person for person in people if person.assigned_site is None])
 
     # Base Case(s)
+    # 'full' - each site is full, each person has been assigned
+    # 'partial' - each person has been assigned
 
     # First check that all sites are valid
-    if check_all_sites_are_valid():
+    try:
+        check_all_sites_are_valid()
 
-        # If mode is full, sites must all be full
-        if mode == 'full':
-            if check_all_sites_are_full():
-                new_site_arrangement = SiteArrangement()
-                new_site_arrangement.freeze()
-                return [new_site_arrangement]
+        if check_each_person_has_been_assigned():
+            # If mode is full, sites must all be full
+            if mode == 'full':
+                if check_all_sites_are_full():
+                    new_site_arrangement = SiteArrangement()
+                    new_site_arrangement.freeze()
+                    print(f"Created a site arrangement.")
+                    for name, site in names_to_sites.items():
+                        print(f"{name} member(s): {site.get_member_names()}")
+                    return [new_site_arrangement]
+                else:
+                    return []
             else:
-                return []
-        else:
-            return [new_site_arrangement]
+                return [new_site_arrangement]
+
+    except:
+        raise Exception("There are one or more sites that are not valid!!!")
 
 
-    # Iterate through each person in the priority list
-    for person in priority_list:
+    # We will iterate through each person in the priority list BUT we do not
+    # use a for loop since we don't want the order of the priority list to matter
+    # Otherwise we'd get sites like A, Ak, E, M; A, Ak, M; A, Ak; ...
+    next_unassigned_person = priority_list[0]
 
-        # Get all the unassigned people
-        all_potential_sites = person.find_potential_sites()
-        priority_sites = order_potential_sites(person,
-                                                all_potential_sites)
+    # Get all the unassigned people
+    all_potential_sites = next_unassigned_person.find_potential_sites()
+    priority_sites = order_potential_sites(next_unassigned_person,
+                                            all_potential_sites)
 
-        # Iterate through each sites in order of priority
-        for site in priority_sites:
+    # Iterate through the sites in order of priority
+    for site in priority_sites:
 
-            # Add the person
-            site.add_member(person)
+        # Add the person
+        site.add_member(next_unassigned_person)
+        print(f"Added {next_unassigned_person.name} to {site.name}")
 
-            # Recursive Case
-            # Create more site arrangements
-            # Add them to the list of working_site_arrangements
-            working_site_arrangements += create_site_arrangements(people)
+        # Recursive Case
+        # Create more site arrangements
+        # Add them to the list of working_site_arrangements
+        working_site_arrangements += (
+            create_site_arrangements(priority_list[1:], mode))
 
-            # Remove the person from the site
-            # Continue onwards to the next site in the list of priority_sites
-            site.remove_member(person)
-
-    # Record the amount of time and how many working site arrangements
-    # are created
-    elapsed = time.time() - start_time
-    elapsed_mins = elapsed // 60
-    elapsed_sec = (elapsed % 60) // 1
-    print(f"Creating {len(working_site_arrangements)} site arrangements "
-          f"took {elapsed_mins} minutes and {elapsed_sec} seconds.")
+        # Remove the person from the site
+        # Continue onwards to the next site in the list of priority_sites
+        site.remove_member(next_unassigned_person)
+        print(f"Removed {next_unassigned_person.name} from {site.name}")
 
     # In the case that there are no people left and the sites are not valid,
     # an empty list will be returned.
@@ -1101,3 +1157,16 @@ def remove_from_times_to_sites(time: str,
             times_to_sites.pop(time)
         else:
             times_to_sites[time].remove(site)
+
+
+
+def initialize_empty_site_map() -> pd.DataFrame:
+    """
+    Returns:
+        pd.DataFrame: empty site map
+    """
+    columns = (['Site', 'School', 'District', 'Day', 'Time', 'Site Leader',
+               'Driver(s)', 'Staff Member'] +
+               [f'Decal Member {i}' for i in range(1, 5)])
+    df = pd.DataFrame(columns = columns)
+    return df
