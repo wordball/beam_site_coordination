@@ -367,22 +367,13 @@ class TestSiteArrangement(unittest.TestCase):
         pass
 
     def test_check_sites_are_full(self):
-        pass
-
-
-    def test_check_sites_are_valid(self):
-        """
-        Tests every possible case of an "ill-formed" site.
-        aka any site that breaks the rules of what a site consists of
-        """
         district = District(name="BUSD")
         common_time = standardize_day_and_time("Monday 9AM - 10AM")
-        site = district.add_site(name="MX A",
-                               time=common_time)
-        site2 = district.add_site(name="MX B",
-                                time=common_time)
         common_availabilities = [common_time]
-
+        site = district.add_site(name="MX A",
+                                 time=common_time)
+        site2 = district.add_site(name = "MX B",
+                                  time=common_time)
         sl = SiteLeader('Aditya',
                         False,
                         common_availabilities)
@@ -392,10 +383,68 @@ class TestSiteArrangement(unittest.TestCase):
         non_SL_staff2 = StaffMember('Donald',
                                    False,
                                    common_availabilities)
-        decal1 = StaffMember('Ethan',
+        decal1 = DecalMember('Ethan',
                              True,
                              common_availabilities)
-        decal2 = StaffMember('Melody',
+        decal2 = DecalMember('Melody',
+                             False,
+                             common_availabilities)
+
+        sl2 = SiteLeader('Surabhi',
+                         False,
+                         common_availabilities)
+        decal3 = DecalMember('Jenna',
+                             True,
+                             common_availabilities)
+        decal4 = DecalMember('Chelsea',
+                             False,
+                             common_availabilities)
+        decal5 = DecalMember('Emily',
+                             False,
+                             common_availabilities)
+        self.assertTrue(check_all_sites_are_clear())
+        self.assertFalse(check_all_sites_are_full())
+
+        # Too few people in site2
+        site.add_member(sl)
+        site.add_member(non_SL_staff)
+        site.add_member(decal1)
+        site.add_member(decal2)
+        site.add_member(decal3)
+        self.assertFalse(check_all_sites_are_full())
+
+        # All sites are full
+        site.remove_member(decal3)
+        site2.add_member(sl2)
+        site2.add_member(decal3)
+        site2.add_member(decal4)
+        site2.add_member(decal5)
+        self.assertTrue(check_all_sites_are_full())
+
+        eliminate_everything()
+
+    def test_check_sites_are_valid_and_test_validate_member(self):
+        """
+        Tests every possible case of an "ill-formed" site.
+        aka any site that breaks the rules of what a site consists of
+        """
+        district = District(name="BUSD")
+        common_time = standardize_day_and_time("Monday 9AM - 10AM")
+        common_availabilities = [common_time]
+        site = district.add_site(name="MX A",
+                               time=common_time)
+
+        sl = SiteLeader('Aditya', False, common_availabilities)
+        non_SL_staff = StaffMember('Akshara',
+                                   False,
+                                   common_availabilities)
+        non_SL_staff2 = StaffMember('Donald',
+                                   False,
+                                   common_availabilities)
+        decal1 = DecalMember('Ethan',
+                             True,
+                             common_availabilities)
+        decal2 = DecalMember('Melody',
                              False,
                              common_availabilities)
 
@@ -413,7 +462,9 @@ class TestSiteArrangement(unittest.TestCase):
                              common_availabilities)
 
         # 2 site leaders in a site
+        self.assertTrue(site.validate_person(sl))
         site.add_member(sl)
+        self.assertFalse(site.validate_person(sl2))
         site.add_member(sl2)
         with self.assertRaises(Exception):
             check_all_sites_are_valid()
@@ -421,23 +472,35 @@ class TestSiteArrangement(unittest.TestCase):
 
 
         # Too many staff (nonSL) members
-        for person in [sl, non_SL_staff, non_SL_staff2]:
+        for i, person in enumerate([sl, non_SL_staff, non_SL_staff2]):
+            if i == 2:
+                self.assertFalse(site.validate_person(person))
+            else:
+                self.assertTrue(site.validate_person(person))
             site.add_member(person)
+
         with self.assertRaises(Exception):
             check_all_sites_are_valid()
         clear_all_sites()
 
         # Too many people in a site
-        for person in [sl, non_SL_staff, decal1, decal2, decal3, decal4]:
+        for i, person in enumerate([sl, non_SL_staff, decal1,
+                                    decal2, decal3, decal4]):
+            if i == 5:
+                print(i)
+                self.assertFalse(site.validate_person(person))
+            else:
+                print(i)
+                self.assertTrue(site.validate_person(person))
             site.add_member(person)
         with self.assertRaises(Exception):
             check_all_sites_are_valid()
         clear_all_sites()
 
         # Person added to a site despite being unavailable during the time slot
-        site.add_member(DecalMember('Argon',
-                                    False,
-                                    ["Tuesday 4PM - 5PM"]))
+        unavailable = DecalMember('Argon', False, ["Tuesday 4PM - 5PM"])
+        self.assertFalse(site.validate_person(unavailable))
+        site.add_member(unavailable)
         with self.assertRaises(Exception):
             check_all_sites_are_valid()
 
@@ -484,12 +547,15 @@ class TestSiteArrangement(unittest.TestCase):
                              'Decal Member 4',
                              'Number of Mentors']:
 
-                self.assertEqual(df1.loc[row, col_name],
-                                df2.loc[row, col_name],
-                                "Df1 and Df2 differ \n"
-                                f"Row:  {row}, Column Name: {col_name}\n"
-                                f"DF1 Value: {df1.loc[row, col_name]},"
-                                f"DF2 Value: {df2.loc[row, col_name]}")
+                if pd.isnull(df1.loc[row, col_name]):
+                    self.assertTrue(df2.loc[row, col_name])
+                else:
+                    self.assertEqual(df1.loc[row, col_name],
+                                    df2.loc[row, col_name],
+                                    "Df1 and Df2 differ \n"
+                                    f"Row:  {row}, Column Name: {col_name}\n"
+                                    f"DF1 Value: {df1.loc[row, col_name]},"
+                                    f"DF2 Value: {df2.loc[row, col_name]}")
 
 
 
@@ -525,12 +591,18 @@ class TestSiteArrangement(unittest.TestCase):
         site_arrangements = create_site_arrangements(
             list(names_to_people.values()),'full')
         self.assertEqual(len(site_arrangements), 1)
-        site_arrangements[0].freeze()
         site_arrangements[0].unfreeze(save_path=str(save_path))
         eliminate_everything()
 
         self.compare_site_maps(str(save_path),
                                str(comparison_path))
+
+    def test_read_populated_site_map(self):
+        """
+        Assume each person's availabilities and other attributes were already
+        encoded.
+        """
+        pass
 
 
     @unittest.skip('huh')
