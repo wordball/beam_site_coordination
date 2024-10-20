@@ -112,8 +112,7 @@ class DecalMember:
 
     def find_potential_sites(self) -> List:
         """
-        Gets a list of sites where the person would be able to be added to the
-        site.
+        Gets a list of sites where the person can teach during the site time.
 
         Returns:
             List[Site]: list of sites
@@ -410,10 +409,11 @@ class Site:
         Args:
             person (DecalMember): _description_
         """
-        assert self.time in person.availabilities, (
-            f"Just double-checked {person.name}'s availabilities. "
-            f"Their availabilities don't match the site {self.name}"
-        )
+        if self.time not in person.availabilities:
+            print(f"Just double-checked {person.name}'s availabilities. "
+                  f"Their availabilities don't match the site {self.name}")
+            return False
+
         # Situation 1
         if self.has_site_leader and person.leads_site:
             return False
@@ -739,6 +739,8 @@ class SiteArrangement:
 
         # Save site map to an Excel file
         if save_path:
+            if os.path.exists(save_path):
+                os.remove(save_path)
             site_map.to_excel(save_path, index=False)
         return site_map
 
@@ -1119,19 +1121,20 @@ def create_site_arrangements(
     for site in priority_sites:
 
         # Add the person
-        site.add_member(next_unassigned_person)
-        print(f"Added {next_unassigned_person.name} to {site.name}")
+        if site.validate_person(next_unassigned_person):
+            site.add_member(next_unassigned_person)
+            print(f"Added {next_unassigned_person.name} to {site.name}")
 
-        # Recursive Case
-        # Create more site arrangements
-        # Add them to the list of working_site_arrangements
-        working_site_arrangements += (
-            create_site_arrangements(priority_list[1:], mode))
+            # Recursive Case
+            # Create more site arrangements
+            # Add them to the list of working_site_arrangements
+            working_site_arrangements += (
+                create_site_arrangements(priority_list[1:], mode))
 
-        # Remove the person from the site
-        # Continue onwards to the next site in the list of priority_sites
-        site.remove_member(next_unassigned_person)
-        print(f"Removed {next_unassigned_person.name} from {site.name}")
+            # Remove the person from the site
+            # Continue onwards to the next site in the list of priority_sites
+            site.remove_member(next_unassigned_person)
+            print(f"Removed {next_unassigned_person.name} from {site.name}")
 
     # In the case that there are no people left and the sites are not valid,
     # an empty list will be returned.
@@ -1165,7 +1168,7 @@ def initialize_empty_site_map() -> pd.DataFrame:
     Returns:
         pd.DataFrame: empty site map
     """
-    columns = (['Site', 'School', 'District', 'Day', 'Time', 'Site Leader',
+    columns = (['Site', 'District', 'Day', 'Time', 'Site Leader',
                'Driver(s)', 'Staff Member'] +
                [f'Decal Member {i}' for i in range(1, 5)])
     df = pd.DataFrame(columns = columns)
