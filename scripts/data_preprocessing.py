@@ -42,7 +42,7 @@ def capitalize_name(name: str):
     return ' '.join(split_parts_by_spaces)
 
 
-def standardize_time(string_time):
+def standardize_time(string_time: str) -> str:
     """
     Written by Perplexity cuz I was too lazy.
 
@@ -255,7 +255,8 @@ def read_empty_site_map(df: pd.DataFrame) -> pd.DataFrame:
     for row in df.index.tolist():
         district = names_to_districts[df.loc[row, 'District']]
         site_name = df.loc[row, 'Site']
-        day_and_time = df.loc[row, 'Day'] + ' ' + df.loc[row, 'Time']
+        day_and_time = (standardize_day(df.loc[row, 'Day']) + ' ' +
+                        standardize_time(df.loc[row, 'Time']))
         district.add_site(site_name, day_and_time)
 
     return df
@@ -272,6 +273,23 @@ def read_populated_site_map(df: pd.DataFrame) -> None:
                                 "takes place from {site_time_slot}.\n"
                                 "However, they are not available during this "
                                 "time.")
+    nondriver_exception_msg = ("{name} is put under the 'Driver(s)' column "
+                               "for the {site_day} {site_name} site that "
+                                "takes place from {site_time_slot}.\n"
+                                "However, according to the google form "
+                                "they filled out, they actually can't drive.")
+    driver_exception_msg = ("{name} is NOT put under the 'Driver(s)' column "
+                            "for the {site_day} {site_name} site that "
+                            "takes place from {site_time_slot}.\n"
+                            "However, according to the google form "
+                            "they filled out, they actually CAN drive.")
+    wrong_number_of_mentors_exception_msg = ("There are {actual_num} mentors "
+                                              "in the {site_day} "
+                                              "{site_name} site that takes "
+                                              "place from {site_time_slot}.\n"
+                                              "But, the 'Number of 'Mentors' "
+                                              "column says that there are "
+                                              "{wrong_num} mentors.")
 
     # Iterate through each site
     for row in df.index.tolist():
@@ -280,10 +298,11 @@ def read_populated_site_map(df: pd.DataFrame) -> None:
         site_day = df.loc[row, 'Day']
         site_time_slot = df.loc[row, 'Time']
 
-        # Check each member's name
+        # Check each member's name.
         # See if their name exists in the dictionaries
-        # Ensure that the site day/time is actually in the person's
-        # availabilities
+        # Ensure that the site day/time is in the person's availabilities
+
+        # SiteLeader
         sl_name = df.loc[row, 'Site Leader']
         if not pd.isnull(sl_name):
             if sl_name not in names_to_site_leaders.keys():
@@ -291,13 +310,13 @@ def read_populated_site_map(df: pd.DataFrame) -> None:
                     'site leader', sl_name))
             else:
                 site_leader = names_to_site_leaders[sl_name]
-                if site.validate_member(site_leader):
+                if site.validate_person(site_leader):
                         site.add_member(site_leader)
                 else:
                     raise Exception(validation_exception_msg.format(
                         sl_name, site_day, site_name, site_time_slot))
 
-
+        # StaffMember
         nonSL_staff_name = df.loc[row, 'Staff Member']
         if not pd.isnull(nonSL_staff_name):
             if nonSL_staff_name not in names_to_nonSL_staff_members.keys():
@@ -305,13 +324,14 @@ def read_populated_site_map(df: pd.DataFrame) -> None:
                     'staff member', nonSL_staff_name))
             else:
                 staff_member = names_to_nonSL_staff_members[nonSL_staff_name]
-                if site.validate_member(staff_member):
+                if site.validate_person(staff_member):
                     site.add_member(staff_member)
                 else:
                     raise Exception(validation_exception_msg.format(
                         nonSL_staff_name, site_day, site_name, site_time_slot))
 
 
+        # DecalMember
         decal_names = [df.loc[row, f'Decal Member {i}'] for i in
                        range(1, 5)]
         for decal_name in decal_names:
@@ -321,13 +341,46 @@ def read_populated_site_map(df: pd.DataFrame) -> None:
                         'decal member', decal_name))
                 else:
                     decal_member = names_to_nonstaff[decal_name]
-                    if site.validate_member(decal_member):
+                    if site.validate_person(decal_member):
                         site.add_member(decal_member)
                     else:
                         raise Exception(
                             validation_exception_msg.format(
                                 decal_name, site_day, site_name,
                                 site_time_slot))
+
+        # Check for names in the 'Driver(s)' column that represent people
+        # who actually CANNOT drive.
+        apparent_driver_names = convert_string_list_to_list_of_strings(
+            df.loc[row, 'Driver(s)'])
+        for name in apparent_driver_names:
+            if name not in names_to_people.keys():
+                raise Exception(nonexistent_exception_msg.format(
+                                name, site_day, site_name,
+                                site_time_slot))
+            else:
+                person = names_to_people[name]
+                if not person.drives:
+                    raise Exception(nondriver_exception_msg.format(
+                        name, site_day, site_name, site_time_slot))
+
+        # Ensure that there is no one else who should be added to the
+        # 'Driver(s)' column
+        site_driver_names = site.get_driver_names()
+        for actual_driver_name in site_driver_names:
+            if actual_driver_name not in apparent_driver_names:
+                raise Exception(driver_exception_msg.format(
+                    actual_driver_name, site_day, site_name, site_time_slot))
+
+        # Ensure that the 'Number of Mentors' column is accurate
+        num_mentors = site.get_num_people()
+        apparent_num_mentors = int(df.loc[row, 'Number of Mentors'])
+        if num_mentors != apparent_num_mentors:
+            raise Exception(wrong_number_of_mentors_exception_msg.format(
+                num_mentors, site_day, site_name, site_time_slot,
+                apparent_num_mentors))
+
+
 
 
 
