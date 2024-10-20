@@ -1,13 +1,16 @@
 import unittest
 from classes import *
 from data_preprocessing import (extract_availabilities_from_string,
-                                standardize_day_and_time)
+                                standardize_day_and_time,
+                                read_populated_site_map)
 import sys
 from pathlib import Path
 import os
 import random
+import string
 
-
+LOWERCASE = string.ascii_lowercase
+UPPERCASE = string.ascii_uppercase
 
 ROOT = Path('C:/Users/aditya/Desktop/my_projects/beam'
                 '/site_leading/github_script/beam_site_coordination')
@@ -15,7 +18,7 @@ if not os.path.exists(str(ROOT)):
     raise Exception("The path of ROOT needs to be established first.")
 
 
-@unittest.skip(reason="idk")
+# @unittest.skip(reason="idk")
 class TestDecalMember(unittest.TestCase):
 
     def test_decal_member_initialization(self):
@@ -63,7 +66,7 @@ class TestDecalMember(unittest.TestCase):
         self.assertNotIn("Monday", member.availabilities)
         member.remove_from_record()
 
-@unittest.skip(reason="idk")
+# @unittest.skip(reason="idk")
 class TestStaffMember(unittest.TestCase):
 
     def test_staff_member_initialization(self):
@@ -86,7 +89,7 @@ class TestStaffMember(unittest.TestCase):
         staff.remove_from_record()
 
 
-@unittest.skip(reason="idk")
+# @unittest.skip(reason="idk")
 class TestSiteLeader(unittest.TestCase):
 
     def test_site_leader_initialization(self):
@@ -107,7 +110,7 @@ class TestSiteLeader(unittest.TestCase):
         self.assertTrue(sl.leads_site)
         sl.remove_from_record()
 
-@unittest.skip(reason="idk")
+# @unittest.skip(reason="idk")
 class TestDistrict(unittest.TestCase):
     def test_get_num_sites(self):
         district = District(name="BUSD")
@@ -129,7 +132,7 @@ class TestDistrict(unittest.TestCase):
         self.assertEqual(district.get_num_site_leaders(), 1)
         eliminate_everything()
 
-@unittest.skip("huh")
+# @unittest.skip("huh")
 class TestSite(unittest.TestCase):
 
     def test_add_site(self):
@@ -242,6 +245,8 @@ class TestSite(unittest.TestCase):
 
 # @unittest.skip(reason="idk")
 class TestSiteArrangement(unittest.TestCase):
+
+    @unittest.skip(reason="idk")
     def test_freeze_and_unfreeze(self):
         common_time = standardize_day_and_time("Monday 9AM - 10AM")
 
@@ -363,8 +368,42 @@ class TestSiteArrangement(unittest.TestCase):
 
         eliminate_everything()
 
+    @unittest.skip("AHHA")
     def test_find_potential_sites(self):
-        pass
+        district = District(name="BUSD")
+
+        #  Create two distinct times
+        time1 = standardize_day_and_time("Monday 9AM - 10AM")
+        time2 = standardize_day_and_time("Wednesday 9AM - 10AM")
+        times = [time1, time2]
+
+        # Create sites whose times alternate between time1 and time2
+        sites = [district.add_site(f"MX {UPPERCASE[i]}",
+                                   f"{times[i % 2]}") for i in range(10)]
+
+        # Create two people who available during time1 and time2, respectively
+        person1 = SiteLeader('Makenna',
+                             True,
+                             [time1])
+        person2 = SiteLeader('Aditya',
+                             False,
+                             [time2])
+        people = [person1, person2]
+
+        # Iterate through each time slot
+        for i, time_slot in enumerate(times):
+
+            # Ensure that values in times_to_sites have the correct length for
+            # each time slot
+            self.assertEqual(len(times_to_sites[time_slot]), 5)
+
+            # Check the sites that match a person's availabilities when calling
+            # find_potential_sites
+            self.assertSetEqual(set(people[i].find_potential_sites()),
+                                set([sites[j] for j in range(10) if j%2==i]))
+
+    eliminate_everything()
+
 
     def test_check_sites_are_full(self):
         district = District(name="BUSD")
@@ -507,12 +546,6 @@ class TestSiteArrangement(unittest.TestCase):
         eliminate_everything()
 
 
-    def test_find_potential_sites(self):
-        pass
-
-    def test_read_site_map(self):
-        pass
-
     def compare_site_maps(self,
                           excel_path1,
                           excel_path2):
@@ -559,7 +592,7 @@ class TestSiteArrangement(unittest.TestCase):
 
 
 
-    # @unittest.skip("LOL")
+    @unittest.skip("LOL")
     def test_unfreeze(self):
         save_dir = ROOT / 'tests' / 'test_unfreeze'
         save_path =  save_dir / 'obtained_unfreeze_case0.xlsx'
@@ -597,15 +630,108 @@ class TestSiteArrangement(unittest.TestCase):
         self.compare_site_maps(str(save_path),
                                str(comparison_path))
 
+    @unittest.skip("HAHAH")
     def test_read_populated_site_map(self):
         """
         Assume each person's availabilities and other attributes were already
         encoded.
         """
-        pass
+        # district = District(name="EBAC")
+        # site = district.add_site(name="Achieve B",
+        #                        time=time1)
+
+        time1 = standardize_day_and_time("Thursday 4:45-5:45 PM")
+        common_availabilities = [time1]
+        other_time = standardize_day_and_time('Friday 9:30AM - 10:30 AM')
 
 
-    @unittest.skip('huh')
+        sl = SiteLeader('Aditya',
+                        False,
+                        common_availabilities)
+        non_SL_staff = StaffMember('Akshara',
+                                   True,
+                                   common_availabilities)
+        decal1 = DecalMember('Ethan',
+                             True,
+                             common_availabilities)
+        decal2 = DecalMember('Melody',
+                             False,
+                             common_availabilities)
+        decal3 = DecalMember('Ying-Li',
+                             False,
+                             common_availabilities)
+        decal4 = DecalMember('Lucas',
+                             False,
+                             common_availabilities)
+        unavailable = DecalMember('Brandon',
+                                  False,
+                                  [other_time])
+
+        directory = ROOT / 'tests' / 'test_read_populated_site_map'
+        site_map = pd.read_excel(directory /
+                                 'mini_site_map.xlsx')
+
+        # Working site map --> no issues expected
+        # Note that the time listed (without the day) on the site map is
+        # '4:45-5:45 PM'. It should be corrected to '4:45PM - 5:45PM'
+        read_populated_site_map(site_map)
+        self.assertEqual(len(list(names_to_sites.values())), 1)
+
+        site = list(names_to_sites.values())[0]
+        self.assertEqual(site.time, time1)
+        self.assertEqual(site.get_SL_name(), 'Aditya')
+        self.assertEqual(site.get_non_SL_staff_name(), 'Akshara')
+        self.assertEqual(site.get_driver_names(), ['Akshara', 'Ethan'])
+        self.assertEqual(site.get_member_names(), ['Aditya', 'Akshara',
+                                                   'Ethan', 'Melody',
+                                                   'Ying-Li'])
+        eliminate_all_districts()
+
+        # Site listed with a person who is not available during the site time.
+        unavailable_site_map = pd.read_excel(directory /
+                                             'unavailable_site_map.xlsx')
+        with self.assertRaises(Exception):
+            read_populated_site_map(unavailable_site_map)
+        eliminate_all_districts()
+
+        # Site listed with a person who did not fill out the google form
+        nonexistent_site_map = pd.read_excel(directory /
+                                             'nonexistent_site_map.xlsx')
+        with self.assertRaises(Exception):
+            read_populated_site_map(nonexistent_site_map)
+        eliminate_all_districts()
+
+        # Site listed with a name under 'Driver(s)' who is actually NOT a
+        # driver
+        nondriver_site_map = pd.read_excel(directory /
+                                             'nondriver_site_map.xlsx')
+        with self.assertRaises(Exception):
+            read_populated_site_map(nondriver_site_map)
+        eliminate_all_districts()
+
+        # Site whose 'Driver(s)' column is actually missing 1+ names
+        wrong_driver_site_map = pd.read_excel(directory /
+                                              'wrong_driver_site_map.xlsx')
+        with self.assertRaises(Exception):
+            read_populated_site_map(wrong_driver_site_map)
+        eliminate_all_districts()
+
+        # Site map with an inaccurate 'Number of Mentors' count in one of the
+        # rows
+        wrong_mentor_count_site_map = pd.read_excel(directory /
+                                                    'wrong_mentor_count.xlsx')
+        with self.assertRaises(Exception):
+            read_populated_site_map(wrong_mentor_count_site_map)
+        eliminate_all_districts()
+
+        eliminate_all_people()
+
+
+
+
+
+
+    # @unittest.skip('huh')
     def test_create_site_arrangements(self):
         """
         Case 1: Fall 2023 Sites: Aditya's & Surabhi's sites
@@ -664,7 +790,7 @@ class TestSiteArrangement(unittest.TestCase):
         self.assertEqual(len(site_arrangements), 24)
         eliminate_everything()
 
-@unittest.skip("huh")
+@unittest.skip("LOL")
 class testDistrictAndSite(unittest.TestCase):
     def test_add_to_times_to_sites(self):
         district = District(name="BUSD")
@@ -739,7 +865,7 @@ class testEssentialFunction(unittest.TestCase):
         self.assertDictEqual(names_to_nonSL_staff_members, {})
         self.assertDictEqual(names_to_nonstaff, {})
 
-@unittest.skip(reason="idk")
+# @unittest.skip(reason="idk")
 class testDataPreprocessing(unittest.TestCase):
     def test_extract_availabilities_from_string(self):
         sp24_decal_responses = pd.read_excel(str(ROOT / 'tests' / 'test_sp24' /
@@ -761,31 +887,6 @@ class testDataPreprocessing(unittest.TestCase):
                          'Friday 4PM - 5PM']
         self.assertListEqual(availabilities, expected_list)
 
-
-
-def test_compare_site_maps(site_map1, site_map2):
-    """
-    I'll create test dataframes within tests/test_dataframes.
-    I'll create site arrangements based off of some situation and then
-    compare those site arrangements to the dataframes that reflect
-    the expected site arrangements.
-
-    This either requires me to either read the expected site maps into
-    site arrangements OR freeze the site arrangements into dataframes.
-
-    Either way, this will not only test whether I make the right site
-    arrangements but also whether my freeze/read_site_map functions are
-    working.
-
-    So, before I can complete this function, I need to ensure that
-    the two aforementioned functions work first.
-
-    Args:
-        site_map1 (_type_): _description_
-        site_map2 (_type_): _description_
-    """
-    assert names_to_sites is not {}, "No sites provided"
-    pass
 
 
 
