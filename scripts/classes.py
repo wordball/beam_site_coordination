@@ -1045,6 +1045,278 @@ def check_each_person_has_been_assigned() -> bool:
     return True
 
 
+def check_if_each_person_has_more_than_one_availability() -> None:
+    no_availabilities = {'site leaders': [],
+                         'non-SL staff members': [],
+                         'decal members': []}
+
+    # Add each person to the dictionary values
+    for name, person in names_to_people.items():
+        if len(person.availabilities) == 0:
+            if type(person) == DecalMember:
+                no_availabilities['decal members'].append(name)
+            elif type(person) == StaffMember:
+                no_availabilities['non-SL staff members'].append(name)
+            else:
+                no_availabilities['site leaders'].append(name)
+
+    # Create the exception message
+    exception_msg = (
+        "The following people did not provide any availabilities: \n")
+    for person_type, names in no_availabilities.items():
+        exception_msg += f"{person_type}: {', '.join(names)}\n"
+
+    if sum([lst for lst in no_availabilities.values()], []) == []:
+        raise Exception(exception_msg)
+
+def check_for_optimal_number_of_people(
+    mode: Literal['partial', 'full']) -> None:
+
+    num_sites = len(names_to_sites)
+    min_people_required = num_sites * MIN_PEOPLE_PER_SITE
+    max_people_allowed = num_sites * MAX_PEOPLE_PER_SITE
+    num_people = len(names_to_people)
+
+    # Compare the number of people available
+    num_people_message = (
+        f"There are {num_sites} sites which means that there needs to be a "
+        f"total of {min_people_required} to {max_people_allowed} people. "
+        f"As of now, there are {num_people} people whose information was "
+        "provided.")
+
+    if num_people < min_people_required:
+        num_people_message = (
+            "There are not enough people for each site!\n" +
+            num_people_message)
+        raise Exception(num_people_message)
+
+    elif num_people > max_people_allowed:
+        num_people_message = (
+            "There are too many people!\n" +
+            num_people_message)
+        raise Exception(num_people_message)
+
+    else:
+        pass
+
+    # Check each time in times_to_sites and perform the same comparison.
+    num_people_available_msg = ""
+    for day_and_time, site_list in times_to_sites.items():
+        people = [person for person in names_to_people.values() if
+                  day_and_time in person.availabilities]
+        num_people_available = len(people)
+        num_sites_during_time = len(site_list)
+        min_people_required_during_time = (num_sites_during_time *
+                                           MIN_PEOPLE_PER_SITE)
+        max_people_allowed_during_time = (num_sites_during_time *
+                                          MAX_PEOPLE_PER_SITE)
+
+        if ((num_people_available < min_people_required_during_time and
+             mode == 'full') or (num_people_available >
+                                 max_people_allowed_during_time)):
+
+            num_people_available_msg += (
+                f"There are {num_sites_during_time} sites which take place on "
+                f"{day_and_time}. This requires a total of "
+                f"{min_people_required} to {max_people_allowed} people "
+                f"available during this time. However, there are "
+                f" {num_people} people who are available.\n")
+
+    if num_people_available_msg != "":
+        raise Exception(num_people_available_msg)
+
+
+def check_for_optimal_number_of_SLs() -> None:
+    """
+     Compare the number of site leaders to the number of sites
+    """
+    num_sites = len(names_to_sites)
+    num_SLs = len(names_to_site_leaders)
+
+    num_sl_message = (
+        f"There are {num_sites} sites which means that there needs to be "
+        f"exactly {num_sites} site leaders. As of now, there are "
+        f"{num_SLs} site leaders whose information was provided.")
+
+    if num_SLs < num_sites:
+        num_sl_message = (
+            "There are not enough site leaders!\n" +
+            num_sl_message)
+        raise Exception(num_sl_message)
+
+    elif num_SLs > num_sites:
+        num_sl_message = (
+            "There are too many site leaders!\n" +
+            num_sl_message)
+        raise Exception(num_sl_message)
+
+    else:
+        pass
+
+    # Check each time in times_to_sites and perform the same comparison.
+    num_SLs_available_msg = ""
+    for day_and_time, site_list in times_to_sites.items():
+        sls = [person for person in names_to_site_leaders.values() if
+               day_and_time in person.availabilities]
+        num_SLs_available = len(sls)
+        num_sites_during_time = len(site_list)
+
+        if (num_SLs_available != num_sites_during_time):
+            num_SLs_available_msg += (
+                f"There are {num_sites_during_time} sites which take place on "
+                f"{day_and_time}. This requires exactly "
+                f"{num_sites_during_time} people available during this time. "
+                f"However, there are {num_SLs_available} people who are "
+                "available.\n")
+
+    if num_SLs_available_msg != "":
+        raise Exception(num_SLs_available_msg)
+
+def check_for_optimal_number_of_non_SLs(
+    mode: Literal['partial', 'full']) -> None:
+    """Compare the number of non site leaders to the number of sites"""
+
+    num_sites = len(names_to_sites)
+    num_non_SL = len(names_to_nonSL_staff_members) + len(names_to_nonstaff)
+    min_non_SL_required = (MIN_PEOPLE_PER_SITE - 1) * num_sites
+    max_non_SL_allowed = (MAX_PEOPLE_PER_SITE - 1) * num_sites
+
+    num_nonSL_message = (
+        f"There are {num_sites} sites which means that there needs to be a "
+        f"total of {min_non_SL_required} to {max_non_SL_allowed} non site "
+        "leaders (includes staff and nonstaff). As of now, there are "
+        f"{num_non_SL} such people whose information was provided.")
+
+    if num_non_SL < min_non_SL_required:
+        num_nonSL_message = (
+            "There are not enough NON site leaders!\n" +
+            num_nonSL_message)
+        raise Exception(num_nonSL_message)
+
+    elif num_non_SL > max_non_SL_allowed:
+        num_nonSL_message = (
+            "There are too many NON site leaders!\n" +
+            num_nonSL_message)
+        raise Exception(num_nonSL_message)
+
+    else:
+        pass
+
+    # Check each time in times_to_sites and perform the same comparison.
+    num_non_SLs_available_msg = ""
+    num_non_SL_staff_available_msg = ""
+    num_nonstaff_available_msg = ""
+
+    # For people who are NOT site leaders
+    for day_and_time, site_list in times_to_sites.items():
+
+        non_SLs_staff_available = [person for person in
+                         names_to_nonSL_staff_members.values()
+                         if day_and_time in person.availabilities]
+        nonstaff_available = [person for person in names_to_nonstaff.values()
+                         if day_and_time in person.availabilities]
+        non_SLs_available = non_SLs_staff_available + nonstaff_available
+
+        num_non_SL_staff_available = len(non_SLs_staff_available)
+        num_nonstaff_available = len(nonstaff_available)
+        num_non_SLs_available = len(non_SLs_available)
+        num_sites_during_time = len(site_list)
+
+        # non-SL staff members + non-staff/decal members
+        min_nonSL_required_during_time = (num_sites_during_time *
+                                          (MIN_PEOPLE_PER_SITE - 1))
+        max_nonSL_allowed_during_time = (num_sites_during_time *
+                                         (MAX_PEOPLE_PER_SITE - 1))
+
+        if ((num_non_SLs_available < min_nonSL_required_during_time and
+             mode == 'full') or (num_non_SLs_available >
+                                 max_nonSL_allowed_during_time)):
+            num_non_SLs_available_msg += (
+                f"There are {num_sites_during_time} sites which take place on "
+                f"{day_and_time}. This requires a total of "
+                f"{min_nonSL_required_during_time} to "
+                f"{max_nonSL_allowed_during_time} non site leaders who are "
+                f"available during this time. However, there are "
+                f"{num_non_SLs_available} people who are available instead.\n")
+
+        # non-SL staff specifically
+        max_nonSL_staff_allowed_during_time = (num_sites_during_time *
+                                               (MAX_STAFF_PER_SITE-1))
+        if (num_non_SL_staff_available > max_nonSL_staff_allowed_during_time):
+            num_non_SL_staff_available_msg += (
+                "There are too many non-SL staff members who are available on "
+                f"{day_and_time}.\n")
+            num_non_SL_staff_available_msg += (
+                f"There are {num_sites_during_time} sites which take place on "
+                f"{day_and_time}. This allows a maximum of "
+                f"{max_nonSL_staff_allowed_during_time} non-SL staff members "
+                "who are available during this time. However, there are "
+                f"{num_non_SLs_available} such people who are available.\n")
+
+
+
+        # nonstaff/decal specifically
+        min_nonstaff_required_during_time = (num_sites_during_time *
+                                             MIN_NONSTAFF_PER_SITE)
+        max_nonstaff_allowed_during_time = (num_sites_during_time *
+                                            MAX_NONSTAFF_PER_SITE)
+
+        if ((num_nonstaff_available < min_nonstaff_required_during_time and
+            'mode' == 'full') or (num_nonstaff_available >
+                                 max_nonstaff_allowed_during_time)):
+
+            num_nonstaff_available_msg += (
+                f"There are {num_sites_during_time} sites which take place on "
+                f"{day_and_time}. This requires a total of "
+                f"{min_nonstaff_required_during_time} to "
+                f"{max_nonstaff_allowed_during_time} nonstaff/decal members "
+                f"who are available during this time. However, there are "
+                f"{num_nonstaff_available} such people who are available "
+                "instead.\n")
+
+
+    if num_non_SLs_available_msg != "":
+        raise Exception(num_non_SLs_available_msg)
+
+    if num_non_SL_staff_available_msg != "":
+        raise Exception(num_non_SL_staff_available_msg)
+
+    if num_nonstaff_available_msg != "":
+        raise Exception(num_nonstaff_available_msg)
+
+
+
+
+    # Check if there are enough people of each type
+    # if there are any times during which there are barely enough people
+    # available, note it.
+
+
+
+def check_for_edge_cases() -> None:
+    """
+    Superficially checks whether there are enough decal members,
+       staff members, and site leaders who are available during each time ->
+       Done
+
+
+
+    Args:
+        people (_type_): _description_
+
+    Raises:
+        Exception:
+
+    Returns:
+        None
+    """
+    check_if_each_person_has_more_than_one_availability()
+    check_for_optimal_number_of_people()
+    check_for_optimal_number_of_SLs()
+    check_for_optimal_number_of_non_SLs
+
+
+
 @typechecked
 def create_site_arrangements(
     people: List[DecalMember],
@@ -1073,6 +1345,7 @@ def create_site_arrangements(
         List[SiteArrangement]: _description_
     """
 
+    check_for_edge_cases()
     # Initialize an empty list of working site arrangements
     working_site_arrangements = []
 
