@@ -8,7 +8,8 @@
 *.pyc
 
 # Ignore the progress.txt file
-progress.txt
+*.txt
+*.log
 
 # Any jupyter notebooks
 *.ipynb
