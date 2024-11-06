@@ -6,3 +6,9 @@
 
 # Ignore all .pyc files
 *.pyc
+
+# Ignore the progress.txt file
+progress.txt
+
+# Any jupyter notebooks
+*.ipynb

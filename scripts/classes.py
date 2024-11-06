@@ -4,7 +4,22 @@ from typing import Optional, Dict, Tuple, List, Union, Literal
 import time
 from typeguard import typechecked
 import os
+import logging
 
+
+LOG_DIR = ("C:/Users/aditya/Desktop/my_projects/beam/site_leading"
+           "/github_script/beam_site_coordination/scripts/logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename=f"{LOG_DIR}/basic_functionality2.log",
+    encoding="utf-8",
+    filemode="a",
+    format="{asctime} - {levelname} - {message}",
+    style="{",
+    datefmt="%Y-%m-%d %H:%M",
+)
+logging.debug("NEW EXECUTION")
 
 # TODO: Updates 8/10/2024
 # TODO: Block Diagram
@@ -130,6 +145,15 @@ class DecalMember:
 
         return potential_sites
 
+    def __str__(self):
+        description = (f"The decal member {self.name} has the following "
+                       f"availabilities: {self.availabilities}.")
+        if self.assigned_site is not None:
+            description += (
+                f"They are assigned to the site {self.assigned_site.name} "
+                f"which takes place on {self.assigned_site.time}.")
+        return description
+
 @typechecked
 class StaffMember(DecalMember):
     def __init__(self,
@@ -159,6 +183,11 @@ class StaffMember(DecalMember):
         names_to_nonSL_staff_members.pop(self.name)
         if self.assigned_site is not None:
             self.assigned_site.remove_member(self)
+
+    def __str__(self):
+        standard_description = super().__str__()
+        return standard_description.replace('decal member',
+                                            'non-SL staff member')
 
 @typechecked
 class SiteLeader(StaffMember):
@@ -191,6 +220,11 @@ class SiteLeader(StaffMember):
         names_to_site_leaders.pop(self.name)
         if self.assigned_site is not None:
             self.assigned_site.remove_member(self)
+
+    def __str__(self):
+        standard_description = super().__str__()
+        return standard_description.replace('non-SL staff member',
+                                            'site leader')
 
 
 @typechecked
@@ -493,22 +527,23 @@ class Site:
         self.has_driver = any([
             person for person in self.members if person.drives])
 
+        num_staff = self.get_num_staff()
+        num_nonstaff = self.get_num_nonstaff()
+        num_people = num_staff + num_nonstaff
 
-        # Criteria for a full site
-        if (self.has_site_leader and
-            self.has_driver):
+        # self.is_full needs to be re-evaluated even if it stays the same.
+        # Otherwise, the recursive process may deem a site as full when it
+        # isn't due to a previous site arrangement
 
-            num_staff = self.get_num_staff()
-            num_nonstaff = self.get_num_nonstaff()
-            num_people = num_staff + num_nonstaff
-            if (num_staff >= MIN_STAFF_PER_SITE and
-                num_staff <= MAX_STAFF_PER_SITE and
-                num_nonstaff >= MIN_NONSTAFF_PER_SITE and
-                num_nonstaff <= MAX_NONSTAFF_PER_SITE and
-                num_people >= MIN_PEOPLE_PER_SITE and
-                num_people <= MAX_PEOPLE_PER_SITE):
-
-                self.is_full = True
+        self.is_full = (
+            self.has_site_leader and
+            self.has_driver and
+            num_staff >= MIN_STAFF_PER_SITE and
+            num_staff <= MAX_STAFF_PER_SITE and
+            num_nonstaff >= MIN_NONSTAFF_PER_SITE and
+            num_nonstaff <= MAX_NONSTAFF_PER_SITE and
+            num_people >= MIN_PEOPLE_PER_SITE and
+            num_people <= MAX_PEOPLE_PER_SITE)
 
     def get_num_drivers(self) -> int:
         """
@@ -576,8 +611,12 @@ class Site:
         """
         Returns the list of names referring to people within the site
         who are part of decal but not in staff.
+
+        The list is sorted for the sake of comparing SiteArrangements
+        which will end up calling this method after calling the freeze method.
         """
-        return [member.name for member in self.members if not member.in_staff]
+        return sorted(
+            [member.name for member in self.members if not member.in_staff])
 
     def get_member_names(self) -> List[str]:
         """
@@ -631,17 +670,15 @@ class SiteArrangement:
         return self.site_assignments
 
     def unfreeze(self,
-                 site_map: Optional[pd.DataFrame] = None,
-                 save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
+                 site_map: Optional[pd.DataFrame],
+                 save_path: Optional[str],
+                 eliminate: bool,
+                 clear: bool) -> Optional[pd.DataFrame]:
         """
         Takes the site assignments in self.site_assignments and
         actually assigns each DecalMember instance to their respective
         Site instance.
 
-        # TODO: If the site_map is not None, you need to ensure
-        # TODO: that you insert the entries in the right rows
-        # TODO: In other words, the populated site map should look
-        # TODO: exactly as you would read it. --> Done via
 
         Note that  'DecalMember instance' also refers to
         StaffMember and SiteLeader istances.
@@ -649,6 +686,12 @@ class SiteArrangement:
         Args:
             save_path (Optional[str]): if path is None --> returns None
                 if path is not None --> populate_site_map is called
+            eliminate (bool): whether to call eliminate_everything function.
+                              To be used usually if the site map is saved
+                              to a path.
+            clear (bool): whether to call clear_all_sites function.
+                          To be used usually if the site map is saved
+                          to a path.
 
         Raises:
             Exception: Given an issue with the unfreeze method or if
@@ -678,6 +721,11 @@ class SiteArrangement:
 
         self.populate_site_map(site_map,
                                save_path)
+
+        if eliminate:
+            eliminate_everything()
+        if clear:
+            clear_all_sites()
 
     def populate_site_map(self,
                           site_map: pd.DataFrame,
@@ -749,8 +797,7 @@ class SiteArrangement:
         for id in self.site_assignments.keys():
             site = ids_to_sites[id]
             names = self.site_assignments[id]
-            print(f"Site ID #{id}: {site.name}")
-            print(f"People: {names}")
+            return (f"Site ID #{id}: {site.name}\nPeople: {names}")
 
 @typechecked
 def get_day_and_time(string_day_and_time:str) -> Tuple[str, str]:
@@ -1045,7 +1092,7 @@ def check_each_person_has_been_assigned() -> bool:
     return True
 
 
-def check_if_each_person_has_more_than_one_availability() -> None:
+def check_if_each_person_has_more_than_one_availability() -> bool:
     no_availabilities = {'site leaders': [],
                          'non-SL staff members': [],
                          'decal members': []}
@@ -1066,8 +1113,10 @@ def check_if_each_person_has_more_than_one_availability() -> None:
     for person_type, names in no_availabilities.items():
         exception_msg += f"{person_type}: {', '.join(names)}\n"
 
-    if sum([lst for lst in no_availabilities.values()], []) == []:
+    if not sum([lst for lst in no_availabilities.values()], []) == []:
         raise Exception(exception_msg)
+
+    return True
 
 def check_for_optimal_number_of_people(
     mode: Literal['partial', 'full']) -> None:
@@ -1084,7 +1133,7 @@ def check_for_optimal_number_of_people(
         f"As of now, there are {num_people} people whose information was "
         "provided.")
 
-    if num_people < min_people_required:
+    if num_people < min_people_required and mode == 'full':
         num_people_message = (
             "There are not enough people for each site!\n" +
             num_people_message)
@@ -1126,7 +1175,7 @@ def check_for_optimal_number_of_people(
         raise Exception(num_people_available_msg)
 
 
-def check_for_optimal_number_of_SLs() -> None:
+def check_for_optimal_number_of_SLs(mode: Literal['partial', 'full']) -> None:
     """
      Compare the number of site leaders to the number of sites
     """
@@ -1138,7 +1187,7 @@ def check_for_optimal_number_of_SLs() -> None:
         f"exactly {num_sites} site leaders. As of now, there are "
         f"{num_SLs} site leaders whose information was provided.")
 
-    if num_SLs < num_sites:
+    if num_SLs < num_sites and mode == 'full':
         num_sl_message = (
             "There are not enough site leaders!\n" +
             num_sl_message)
@@ -1159,9 +1208,11 @@ def check_for_optimal_number_of_SLs() -> None:
         sls = [person for person in names_to_site_leaders.values() if
                day_and_time in person.availabilities]
         num_SLs_available = len(sls)
-        num_sites_during_time = len(site_list)
+        num_sites_during_time = len(site_list) #num_SLs_needed = num_sites_during_time
 
-        if (num_SLs_available != num_sites_during_time):
+        if ((num_SLs_available < num_sites_during_time and
+             mode == 'full') or (num_SLs_available >
+                                 num_sites_during_time)):
             num_SLs_available_msg += (
                 f"There are {num_sites_during_time} sites which take place on "
                 f"{day_and_time}. This requires exactly "
@@ -1187,7 +1238,7 @@ def check_for_optimal_number_of_non_SLs(
         "leaders (includes staff and nonstaff). As of now, there are "
         f"{num_non_SL} such people whose information was provided.")
 
-    if num_non_SL < min_non_SL_required:
+    if num_non_SL < min_non_SL_required and mode == 'full':
         num_nonSL_message = (
             "There are not enough NON site leaders!\n" +
             num_nonSL_message)
@@ -1211,10 +1262,10 @@ def check_for_optimal_number_of_non_SLs(
     for day_and_time, site_list in times_to_sites.items():
 
         non_SLs_staff_available = [person for person in
-                         names_to_nonSL_staff_members.values()
-                         if day_and_time in person.availabilities]
+                                   names_to_nonSL_staff_members.values()
+                                   if day_and_time in person.availabilities]
         nonstaff_available = [person for person in names_to_nonstaff.values()
-                         if day_and_time in person.availabilities]
+                              if day_and_time in person.availabilities]
         non_SLs_available = non_SLs_staff_available + nonstaff_available
 
         num_non_SL_staff_available = len(non_SLs_staff_available)
@@ -1286,14 +1337,7 @@ def check_for_optimal_number_of_non_SLs(
 
 
 
-
-    # Check if there are enough people of each type
-    # if there are any times during which there are barely enough people
-    # available, note it.
-
-
-
-def check_for_edge_cases() -> None:
+def check_for_edge_cases(mode: Literal['partial', 'full']) -> None:
     """
     Superficially checks whether there are enough decal members,
        staff members, and site leaders who are available during each time ->
@@ -1311,16 +1355,17 @@ def check_for_edge_cases() -> None:
         None
     """
     check_if_each_person_has_more_than_one_availability()
-    check_for_optimal_number_of_people()
-    check_for_optimal_number_of_SLs()
-    check_for_optimal_number_of_non_SLs
+    check_for_optimal_number_of_people(mode)
+    check_for_optimal_number_of_SLs(mode)
+    check_for_optimal_number_of_non_SLs(mode)
 
 
 
 @typechecked
 def create_site_arrangements(
     people: List[DecalMember],
-    mode: Literal['full', 'partial']) -> List[SiteArrangement]:
+    mode: Literal['full', 'partial'],
+    spaces:str="") -> List[SiteArrangement]:
     """
     Creates a list of SiteArrangement objects.
 
@@ -1345,7 +1390,7 @@ def create_site_arrangements(
         List[SiteArrangement]: _description_
     """
 
-    check_for_edge_cases()
+    check_for_edge_cases(mode)
     # Initialize an empty list of working site arrangements
     working_site_arrangements = []
 
@@ -1363,17 +1408,26 @@ def create_site_arrangements(
 
         if check_each_person_has_been_assigned():
             # If mode is full, sites must all be full
+            logging.debug("-"*25)
             if mode == 'full':
                 if check_all_sites_are_full():
                     new_site_arrangement = SiteArrangement()
                     new_site_arrangement.freeze()
                     print(f"Created a site arrangement.")
-                    for name, site in names_to_sites.items():
-                        print(f"{name} member(s): {site.get_member_names()}")
+                    # logging.debug("Created a site arrangement")
+                    # for name, site in names_to_sites.items():
+                    #     logging.debug(f"{name} member(s): "
+                    #                   f"{site.get_member_names()}")
                     return [new_site_arrangement]
                 else:
-                    return []
+                    return [] # do not raise an Exception here! Rmemeber the 3/5 situation
             else:
+                new_site_arrangement = SiteArrangement()
+                new_site_arrangement.freeze()
+                # logging.debug("Created a site arrangement")
+                # for name, site in names_to_sites.items():
+                #     logging.debug(f"{name}'s {site.get_num_people()} "
+                #                   f"member(s): {site.get_member_names()}")
                 return [new_site_arrangement]
 
     except:
@@ -1396,18 +1450,21 @@ def create_site_arrangements(
         # Add the person
         if site.validate_person(next_unassigned_person):
             site.add_member(next_unassigned_person)
-            print(f"Added {next_unassigned_person.name} to {site.name}")
+            # logging.debug(
+            #     f"{spaces}Added {next_unassigned_person.name} to {site.name}")
 
             # Recursive Case
             # Create more site arrangements
             # Add them to the list of working_site_arrangements
-            working_site_arrangements += (
-                create_site_arrangements(priority_list[1:], mode))
+            working_site_arrangements += create_site_arrangements(
+                priority_list[1:], mode, spaces + "  ")
 
             # Remove the person from the site
             # Continue onwards to the next site in the list of priority_sites
             site.remove_member(next_unassigned_person)
-            print(f"Removed {next_unassigned_person.name} from {site.name}")
+            # logging.debug(
+            #     f"{spaces}Removed {next_unassigned_person.name} from "
+            #       f"{site.name}")
 
     # In the case that there are no people left and the sites are not valid,
     # an empty list will be returned.
@@ -1446,3 +1503,57 @@ def initialize_empty_site_map() -> pd.DataFrame:
                [f'Decal Member {i}' for i in range(1, 5)])
     df = pd.DataFrame(columns = columns)
     return df
+
+def compare_two_pandas_values(val1, val2) -> bool:
+    if (pd.isnull(val1) and not pd.isnull(val2) or (
+        pd.isnull(val2) and not pd.isnull(val1))):
+        return False
+    elif pd.isnull(val1) and pd.isnull(val2):
+        pass
+    else:
+        # TODO: FIX
+        if val1 != val2:
+            return False
+    return True
+
+
+@typechecked
+def check_site_maps_are_equivalent(arg1: Union[pd.DataFrame, os.PathLike],
+                                   arg2: Union[pd.DataFrame, os.PathLike]):
+    assert type(arg1) == type(arg2), ("arg1 type != arg2 type\n"
+                                      f"arg1 type: {type(arg1)}"
+                                      f"arg2 type: {type(arg2)}")
+
+    # Get the site map dataframe
+    if type(arg1) == pd.DataFrame:
+        df1, df2 = list(map(lambda x: pd.read_excel(x), [arg1, arg2]))
+    else:
+        df1, df2 = arg1, arg2
+
+    # Check the values
+    for row in df1.index.tolist():
+
+        for col_name in ['Day',
+                         'Time',
+                         'Site Leader',
+                         'Driver(s)',
+                         'Staff Member',
+                         'Decal Member 1',
+                         'Decal Member 2',
+                         'Decal Member 3',
+                         'Decal Member 4',
+                         'Number of Mentors']:
+            val1, val2 = df1.loc[row, col_name], df2.loc[row, col_name]
+            # if not compare_two_pandas_values(val1, val2):
+            #     return False
+            if pd.isnull(val1) and not pd.isnull(val2) or (
+                pd.isnull(val2) and not pd.isnull(val1)):
+                return False
+            elif pd.isnull(val1) and pd.isnull(val2):
+                pass
+            else:
+                # TODO: FIX
+                if val1 != val2:
+                    return False
+    return True
+

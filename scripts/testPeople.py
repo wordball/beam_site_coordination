@@ -246,7 +246,7 @@ class TestSite(unittest.TestCase):
 # @unittest.skip(reason="idk")
 class TestSiteArrangement(unittest.TestCase):
 
-    @unittest.skip(reason="idk")
+    # @unittest.skip(reason="idk")
     def test_freeze_and_unfreeze(self):
         common_time = standardize_day_and_time("Monday 9AM - 10AM")
 
@@ -272,7 +272,10 @@ class TestSiteArrangement(unittest.TestCase):
         self.assertListEqual([], site.members)
 
         # Unfreeze
-        arrangement.unfreeze()
+        arrangement.unfreeze(site_map=None,
+                             save_path=None,
+                             eliminate=False,
+                             clear=False)
         self.assertEqual(member.assigned_site, site)
         self.assertIn(member, site.members)
         eliminate_everything()
@@ -368,7 +371,7 @@ class TestSiteArrangement(unittest.TestCase):
 
         eliminate_everything()
 
-    @unittest.skip("AHHA")
+    # @unittest.skip("AHHA")
     def test_find_potential_sites(self):
         district = District(name="BUSD")
 
@@ -402,7 +405,7 @@ class TestSiteArrangement(unittest.TestCase):
             self.assertSetEqual(set(people[i].find_potential_sites()),
                                 set([sites[j] for j in range(10) if j%2==i]))
 
-    eliminate_everything()
+        eliminate_everything()
 
 
     def test_check_sites_are_full(self):
@@ -542,28 +545,64 @@ class TestSiteArrangement(unittest.TestCase):
         site.add_member(unavailable)
         with self.assertRaises(Exception):
             check_all_sites_are_valid()
-
         eliminate_everything()
 
 
+    def compare_site_arrangements(self,
+                                  sa1: SiteArrangement,
+                                  sa2: SiteArrangement) -> bool:
+        """
+        Compares two SiteArrangement objects to see if they have the same
+        keys & values in their site_assignments dictionary
+
+        Args:
+            sa1 (SiteArrangement)
+            sa2 (SiteArrangement)
+
+        Returns:
+            bool: whether the two SiteArrangement objects have the same
+                  condensed form
+        """
+        if (sorted(list(sa1.site_assignments.keys())) !=
+            sorted(list(sa2.site_assignments.keys()))):
+            return False
+
+        for id in sa1.site_assignments.keys():
+            sa1_site_member_names = sa1.site_assignments[id]
+            sa2_site_member_names = sa2.site_assignments[id]
+            if sa1_site_member_names != sa2_site_member_names:
+                # logging.debug(f"Site ID: {id}")
+                # logging.debug(f"sa1_site_member_names: {sa1_site_member_names}")
+                # logging.debug(f"sa2_site_member_names: {sa2_site_member_names}")
+                # logging.debug("The names differ so we won't read the next "
+                #               "index & we will conclude these site "
+                #               "arrangements are different.")
+                return False
+        return True
+
+
     def compare_site_maps(self,
-                          excel_path1,
-                          excel_path2):
+                          excel_path1: str,
+                          excel_path2: str) -> bool:
         """
         Compares site maps to ensure they have the same values
 
         Args:
             excel_path1 (str): excel path of first dataframe
             excel_path2 (str): excel path of second dataframe
+
+        Returns:
+            (bool): whether the site maps are the same or not
         """
         assert os.path.exists(excel_path1), (f"The path ({excel_path1})passed into "
                                              "excel_path1 doesn't exist!")
         assert os.path.exists(excel_path2), (f"The path ({excel_path2})passed into "
                                              "excel_path2 doesn't exist!")
 
-
         df1 = pd.read_excel(excel_path1)
         df2 = pd.read_excel(excel_path2)
+        if df1.index.tolist() != df2.index.tolist():
+            return False
         self.assertListEqual(df1.index.tolist(), df2.index.tolist())
 
         # Check to ensure they have the same set of columns
@@ -574,25 +613,41 @@ class TestSiteArrangement(unittest.TestCase):
                              'Site Leader',
                              'Driver(s)',
                              'Staff Member',
-                             'Decal Member 1',
-                             'Decal Member 2',
-                             'Decal Member 3',
-                             'Decal Member 4',
                              'Number of Mentors']:
 
-                if pd.isnull(df1.loc[row, col_name]):
-                    self.assertTrue(df2.loc[row, col_name])
-                else:
-                    self.assertEqual(df1.loc[row, col_name],
-                                    df2.loc[row, col_name],
-                                    "Df1 and Df2 differ \n"
-                                    f"Row:  {row}, Column Name: {col_name}\n"
-                                    f"DF1 Value: {df1.loc[row, col_name]},"
-                                    f"DF2 Value: {df2.loc[row, col_name]}")
+                val1, val2 = df1.loc[row, col_name], df2.loc[row, col_name]
+                if not compare_two_pandas_values(val1, val2):
+                    logging.debug(f"df1 and df2 differ - "
+                                  f"row: {row}, col_name: {col_name}\n"
+                                  f"df1 value: {val1}, "
+                                  f"df2 value: {val2}")
+                    return False
+
+            decal_col_names = ['Decal Member 1', 'Decal Member 2',
+                               'Decal Member 3', 'Decal Member 4']
+            df1_decal_members = [df1.loc[row, col_name] for col_name in
+                                decal_col_names]
+            df2_decal_members = [df2.loc[row, col_name] for col_name in
+                                decal_col_names]
+            non_nan1 = sorted([name for name in df1_decal_members if not
+                            pd.isnull(name)])
+            non_nan2 = sorted([name for name in df2_decal_members if not
+                            pd.isnull(name)])
+            nan1_count = len(df1_decal_members) - len(non_nan1)
+            nan2_count = len(df2_decal_members) - len(non_nan2)
+            if nan1_count != nan2_count:
+                logging.debug(f"nan counts differ - df1: {nan1_count}, "
+                            f"df2: {nan2_count}")
+                return False
+            if non_nan1 != non_nan2:
+                logging.debug("decal members differ between site maps 1 & "
+                            f"2\nsite map 1: {non_nan1}\n"
+                            f"site map 2: {non_nan2}")
+                return False
+        return True
 
 
-
-    @unittest.skip("LOL")
+    # @unittest.skip("LOL")
     def test_unfreeze(self):
         save_dir = ROOT / 'tests' / 'test_unfreeze'
         save_path =  save_dir / 'obtained_unfreeze_case0.xlsx'
@@ -624,13 +679,15 @@ class TestSiteArrangement(unittest.TestCase):
         site_arrangements = create_site_arrangements(
             list(names_to_people.values()),'full')
         self.assertEqual(len(site_arrangements), 1)
-        site_arrangements[0].unfreeze(save_path=str(save_path))
-        eliminate_everything()
+        site_arrangements[0].unfreeze(site_map=None,
+                                      save_path=str(save_path),
+                                      eliminate=True,
+                                      clear=False)
+        self.assertTrue(
+            self.compare_site_maps(str(save_path),
+                                   str(comparison_path)))
 
-        self.compare_site_maps(str(save_path),
-                               str(comparison_path))
-
-    @unittest.skip("HAHAH")
+    # @unittest.skip("HAHAH") #PROBLEMCHILD
     def test_read_populated_site_map(self):
         """
         Assume each person's availabilities and other attributes were already
@@ -722,9 +779,7 @@ class TestSiteArrangement(unittest.TestCase):
                                                     'wrong_mentor_count.xlsx')
         with self.assertRaises(Exception):
             read_populated_site_map(wrong_mentor_count_site_map)
-        eliminate_all_districts()
-
-        eliminate_all_people()
+        eliminate_everything()
 
 
 
@@ -733,10 +788,17 @@ class TestSiteArrangement(unittest.TestCase):
 
     # @unittest.skip('huh')
     def test_create_site_arrangements(self):
+        # TODO: The two drivers can't be assigned to the 3 person sites together?
+        # TODO: But they can be assigned to the 5-person sites together?
+        # SOLVED: If sites reach 4 people who can't drive, they cannot add
+        # another person UNLESS that person is a driver
         """
         Case 1: Fall 2023 Sites: Aditya's & Surabhi's sites
-        Once one site is made, the other is predetermined
 
+        Once one site is made, the other is predetermined.
+
+        Since we have enough people to make 2 full sites, let's set the
+        mode to 'full'.
         There are 2 choices for a SL.--> Aditya/Surabhi
         Akshara can be in either of the two sites. In whichever site she is in,
         there needs to be exactly 2 other decal members (one of whom can drive)
@@ -750,7 +812,56 @@ class TestSiteArrangement(unittest.TestCase):
         This gives a total of 2 * 2 * 2 * 3 = 24 permutations.
         This is how one of the two sites will look like.
         Aditya/Surabhi (2 choices) Akshara (2 choices for her site),
-        Ethan/Jenna (2 choices), Melody/Chelsea,Emily (3 choices)
+        Ethan/Jenna (2 choices), Melody/Chelsea,Emily (3 choices).
+
+        ---------------------------------------------------------
+        However, if the mode is partial, then that means that there can be
+        configurations where one site has five people and other site has
+        three people (recall we can't exceed 5 people/site due to imposed
+        limits when adding people.)
+
+        As of now we have 24 full site arrangements of 4 people in each site so
+        let's take those arrangements out of the picture for now.
+
+        Note that because the mode is 'partial', there can be a site
+        with 2 drivers in it and the other site can have 0 drivers in it.
+        Going back to our 4 person/site arrangements, this gives us a total of
+        [MX A/B]: [Aditya/Surabhi] [Akshara] [Ethan & Jenna] --> 4 combos
+        [MX A/B]: [Aditya/Surabhi][Ethan * Jenna][Melody/Emily/Chelsea] -->
+            12 combos.
+
+        Our total for the 4-person/site combos is now up to 24 + 4 + 12 = 40
+
+        We can double-check this value:
+        [MX A/B] [Aditya/Surabhi] [Akshara] [5 choose 2] --> 40 choices
+
+        This was verified in basic_functionality.log
+
+
+        Now onto 5-people sites....
+        Akshara can either be in the site with 5 people or the site with 3
+        people.
+
+        Let's take the former case:
+        2 choices for a SL (Aditya/Surabhi)
+        2 choices for where Akshara wants to go (MX A or MX B)
+        In the site with Akshara, there are 5 choose 3 choices = 10 choices
+        2 * 2 * 10 = 40
+
+
+        If Akshara is not present in the 5 person site, then here's how it will
+        go:
+        2 choices for a SL (Aditya/Surabhi)
+        2 choices for where Akshara wants to go (MX A or MX B)
+        5 choices for the remaining person on Akshara's site.
+        2 * 2 * 5 = 20 choices.
+
+        In total, we have 40 + 40  + 20 = 100 choices
+
+        However, we need to subtract the 4 cases in which Emily/Ethan are in the
+        3-person site. That's due to the fact that our program doesn't allow
+        for 5-person sites to exist that are NOT full (which in this case means
+        that the site needs to have a driver)
         """
         district = District(name="BUSD")
         common_time = standardize_day_and_time("Monday 9AM - 10AM")
@@ -766,10 +877,10 @@ class TestSiteArrangement(unittest.TestCase):
         non_SL_staff = StaffMember('Akshara',
                                    False,
                                    common_availabilities)
-        decal1 = StaffMember('Ethan',
+        decal1 = DecalMember('Ethan',
                              True,
                              common_availabilities)
-        decal2 = StaffMember('Melody',
+        decal2 = DecalMember('Melody',
                              False,
                              common_availabilities)
 
@@ -785,12 +896,100 @@ class TestSiteArrangement(unittest.TestCase):
         decal5 = DecalMember('Emily',
                              False,
                              common_availabilities)
-        site_arrangements = create_site_arrangements(
+
+        # PARTIAL CASE
+        expected_num_partial_arrangements = 96
+        partial_site_arrangements = create_site_arrangements(
             list(names_to_people.values()),'partial')
-        self.assertEqual(len(site_arrangements), 24)
+        self.assertEqual(len(partial_site_arrangements),
+                         expected_num_partial_arrangements)
+        for person in names_to_people.values():
+            self.assertIsNone(person.assigned_site)
+        for site in names_to_sites.values():
+            self.assertListEqual(site.members, [])
+
+        # FULL CASE
+        expected_num_full_arrangements = 24
+        obtained_site_arrangements = create_site_arrangements(
+            list(names_to_people.values()), 'full')
+        self.assertEqual(len(obtained_site_arrangements),
+                         expected_num_full_arrangements)
+        self.assertTrue(check_all_sites_are_clear())
+
+        # Unfreeze
+        obtained_dir = Path('C:/Users/aditya/Desktop/my_projects/beam/'
+                            'site_leading/github_script/beam_site_coordination'
+                            '/tests/test_dataframes/case1_sitearrangements/'
+                            'obtained')
+        for i, site_arrangement in enumerate(obtained_site_arrangements):
+            unfreeze_path = obtained_dir/f'{i+1}.xlsx'
+            # Clear sites but do not eliminate sites
+            # Reason 1: You can't unfreeze untill all sites are cleared
+            # Reason 2: Next part of test function assumes that each person
+            #           has 'provided their availabilities'
+            site_arrangement.unfreeze(site_map=None,
+                                      save_path=str(unfreeze_path),
+                                      eliminate=False,
+                                      clear=True)
+
+
+        # Compare created site arrangements with expected site arrangements
+        # from the SiteArrangement objects
+        expected_dir = Path('C:/Users/aditya/Desktop/my_projects/beam/'
+                            'site_leading/github_script/beam_site_coordination'
+                            '/tests/test_dataframes/case1_sitearrangements/'
+                            'expected')
+        expected_site_arrangements = []
+        for excel_fname in os.listdir(expected_dir):
+            if ".xlsx" in excel_fname:
+                expected_site_map_path = expected_dir / excel_fname
+                expected_site_map = pd.read_excel(expected_site_map_path)
+
+                self.assertTrue(
+                    check_if_each_person_has_more_than_one_availability())
+                print(f"Reading the site map: {excel_fname}")
+                self.assertTrue('Aditya' in names_to_site_leaders)
+                read_populated_site_map(expected_site_map)
+                self.assertTrue('Aditya' in names_to_site_leaders)
+                self.assertTrue(
+                    check_if_each_person_has_more_than_one_availability(),
+                    "Each person does not have more than one availability")
+                print(f"Finished reading the site map: {excel_fname}")
+
+                # Create and add the expected_site_arrangement
+                expected_site_arrangement = SiteArrangement()
+                expected_site_arrangement.freeze()
+                expected_site_arrangements.append(expected_site_arrangement)
+                clear_all_sites()
+
+        # Testomg the freeze
+        freeze_similarity_count = 0
+        for i, obtained in enumerate(obtained_site_arrangements):
+            for j, expected in enumerate(expected_site_arrangements):
+                # logging.debug(f"obtained index: {i}, expected index: {j}")
+                if self.compare_site_arrangements(obtained, expected):
+                    freeze_similarity_count += 1
+        self.assertEqual(freeze_similarity_count,
+                         expected_num_full_arrangements)
+        print("huzzah! freeze works!")
+
+
+        # Compare created site arrangements with expected site arrangements
+        # from the excel files
+        unfreeze_similarity_count = 0
+        for fname in os.listdir(expected_dir):
+            for gname in os.listdir(obtained_dir):
+                fpath = expected_dir / fname
+                gpath = obtained_dir / gname
+                if (".xlsx" in fname and ".xlsx" in gname):
+                    logging.debug(f"fname: {fname}, gname: {gname}")
+                    if self.compare_site_maps(fpath, gpath):
+                        unfreeze_similarity_count += 1
+        self.assertEqual(unfreeze_similarity_count,
+                         expected_num_full_arrangements)
         eliminate_everything()
 
-@unittest.skip("LOL")
+# @unittest.skip("LOL")
 class testDistrictAndSite(unittest.TestCase):
     def test_add_to_times_to_sites(self):
         district = District(name="BUSD")
@@ -828,7 +1027,7 @@ class testDistrictAndSite(unittest.TestCase):
 
         eliminate_everything()
 
-@unittest.skip(reason="idk")
+# @unittest.skip(reason="idk")
 class testEssentialFunction(unittest.TestCase):
     def test_eliminate_everything(self):
         district = District(name="Imaginary")

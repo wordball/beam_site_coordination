@@ -262,34 +262,36 @@ def read_empty_site_map(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def read_populated_site_map(df: pd.DataFrame) -> None:
-    df = read_empty_site_map(df)
+    if (times_to_sites == {} and names_to_sites == {} and
+        names_to_districts == {} and ids_to_sites == {}):
+        df = read_empty_site_map(df)
 
     # Exception messages to be used for later
-    nonexistent_exception_msg = ("The {member_type} named {name} is on the "
+    nonexistent_exception_msg = ("The {} named {} is on the "
                                  "site map but they did not fill out the "
                                  "google form.")
-    validation_exception_msg = ("{name} has been assigned to "
-                                "the {site_day} {site_name} site that "
-                                "takes place from {site_time_slot}.\n"
+    validation_exception_msg = ("{} has been assigned to "
+                                "the {} {} site that "
+                                "takes place from {}.\n"
                                 "However, they are not available during this "
                                 "time.")
-    nondriver_exception_msg = ("{name} is put under the 'Driver(s)' column "
-                               "for the {site_day} {site_name} site that "
-                                "takes place from {site_time_slot}.\n"
+    nondriver_exception_msg = ("{} is put under the 'Driver(s)' column "
+                               "for the {} {} site that "
+                                "takes place from {}.\n"
                                 "However, according to the google form "
                                 "they filled out, they actually can't drive.")
-    driver_exception_msg = ("{name} is NOT put under the 'Driver(s)' column "
-                            "for the {site_day} {site_name} site that "
-                            "takes place from {site_time_slot}.\n"
+    driver_exception_msg = ("{} is NOT put under the 'Driver(s)' column "
+                            "for the {} {} site that "
+                            "takes place from {}.\n"
                             "However, according to the google form "
                             "they filled out, they actually CAN drive.")
-    wrong_number_of_mentors_exception_msg = ("There are {actual_num} mentors "
-                                              "in the {site_day} "
-                                              "{site_name} site that takes "
-                                              "place from {site_time_slot}.\n"
+    wrong_number_of_mentors_exception_msg = ("There are {} mentors "
+                                              "in the {} "
+                                              "{} site that takes "
+                                              "place from {}.\n"
                                               "But, the 'Number of 'Mentors' "
                                               "column says that there are "
-                                              "{wrong_num} mentors.")
+                                              "{} mentors.")
 
     # Iterate through each site
     for row in df.index.tolist():

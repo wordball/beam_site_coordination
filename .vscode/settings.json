@@ -55,5 +55,6 @@
         "*.xlsx": "default"
     },
     "workbench.iconTheme": "material-icon-theme",
-    "workbench.statusBar.visible": true
+    "workbench.statusBar.visible": true,
+    "explorer.copyRelativePathSeparator": "/"
 }
