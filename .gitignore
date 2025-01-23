@@ -11,7 +11,7 @@
 *.pyc
 
 # Ignore the progress.txt file
-*.txt
+progress.txt
 *.log
 
 # Any jupyter notebooks
