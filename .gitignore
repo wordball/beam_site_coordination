@@ -1,6 +1,9 @@
 # Any excel files
 *.xlsx
 
+# Venv files
+/.venv/
+
 # Ignore __pycache__ directories
 **/__pycache__/
 

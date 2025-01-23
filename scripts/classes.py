@@ -6,21 +6,6 @@ from typeguard import typechecked
 import os
 import logging
 
-
-LOG_DIR = ("C:/Users/aditya/Desktop/my_projects/beam/site_leading"
-           "/github_script/beam_site_coordination/scripts/logs")
-os.makedirs(LOG_DIR, exist_ok=True)
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename=f"{LOG_DIR}/basic_functionality2.log",
-    encoding="utf-8",
-    filemode="a",
-    format="{asctime} - {levelname} - {message}",
-    style="{",
-    datefmt="%Y-%m-%d %H:%M",
-)
-logging.debug("NEW EXECUTION")
-
 # TODO: Updates 8/10/2024
 # TODO: Block Diagram
 # TODO: FREEZING + DATA PREPROCESSING
@@ -31,6 +16,14 @@ logging.debug("NEW EXECUTION")
 # TODO: Try to find a way to log when you reach the end of the branch & then
 # TODO: log the branch
 
+PRINT_EXCEPTIONS_AS_USER_WARNINGS = True
+def _act_on_check_exception_message(msg: str,
+                                   exception_class: Exception = Exception):
+    if msg != "":
+        if PRINT_EXCEPTIONS_AS_USER_WARNINGS:
+            print(msg)
+        else:
+            raise exception_class(msg)
 
 times_to_sites = {} # Maps times to a list of sites that operate at that time
 ids_to_sites = {} # Maps IDs to a list of sites
@@ -82,16 +75,18 @@ class DecalMember:
         self.availabilities = availabilities
         self.assigned_site = None
         for key in kwargs.keys():
-            if key == 'history':
+            if key == 'history' and kwargs[key] is not None:
                 self.history = kwargs[key]
-            elif key == 'last_tb_test':
+            elif key == 'last_tb_test' and kwargs[key] is not None:
                 self.last_tb_test = kwargs[key]
-            elif key == 'speaks_spanish':
+            elif key == 'speaks_spanish' and kwargs[key] is not None:
                 self.speaks_spanish = kwargs[key]
             else:
-                raise Exception("When creating an instance of the person "
-                                f"named {name}, an incorrect attribute name "
-                                f"was passed in: '{key}'")
+                exception_message = ("When creating an instance of the person "
+                                     f"named {name}, an incorrect attribute "
+                                     f"name was passed in for '{key}': "
+                                     f"{kwargs[key]}")
+                raise Exception(exception_message)
         self.add_to_record()
 
     def add_to_record(self):
@@ -146,12 +141,39 @@ class DecalMember:
         return potential_sites
 
     def __str__(self):
-        description = (f"The decal member {self.name} has the following "
-                       f"availabilities: {self.availabilities}.")
+        description = f"{self.name} is a decal member.\n"
+        description += f"Availabilities: {', '.join(self.availabilities)}\n"
+        description += f"Drives: {self.drives}\n"
+
         if self.assigned_site is not None:
+            description += f"Assigned Site: {self.assigned_site.name}\n"
+            description += ("Assigned Site Time: "
+                            f"{self.assigned_site.time}\n")
+        else:
+            description += f"Assigned Site: None\n"
+
+        if 'history' in dir(self):
             description += (
-                f"They are assigned to the site {self.assigned_site.name} "
-                f"which takes place on {self.assigned_site.time}.")
+                f"Districts of Previous Sites: "
+                f"{', '.join(self.history)}.\n")
+        else:
+            description += f"Districts of Previous Sites: Info not provided\n"
+
+
+        if 'last_tb_test' in dir(self):
+            description += (
+                f"Last TB Test: {self.last_tb_test} year(s) ago\n")
+        else:
+            description += f"Last TB Test: Info not provided\n"
+
+
+        if 'speaks_spanish' in dir(self):
+            description += f"Speaks Spanish: {self.speaks_spanish}\n"
+        else:
+            description += f"Speaks Spanish: Info not provided\n"
+
+        description += "-------------\n"
+
         return description
 
 @typechecked
@@ -357,15 +379,18 @@ class Site:
         self.has_site_leader = False
         self.has_driver = False
         self.is_full = False
+        self.has_nonSL_staff_member = False
         self.add_to_record()
 
     def add_to_record(self):
         if self.name in names_to_sites.keys():
-            raise Exception("There is more than one site with the same name: "
-                            f"{self.name}")
-        names_to_sites[self.name] = self
-        add_to_times_to_sites(self.time, self)
-        self.assign_site_id()
+            exception_message = ("There is more than one site with the same "
+                                 f"name: {self.name}")
+            raise Exception(exception_message)
+        else:
+            names_to_sites[self.name] = self
+            add_to_times_to_sites(self.time, self)
+            self.assign_site_id()
 
     def remove_from_record(self):
         ids_to_sites.pop(self.id)
@@ -444,30 +469,34 @@ class Site:
             person (DecalMember): _description_
         """
         if self.time not in person.availabilities:
-            print(f"Just double-checked {person.name}'s availabilities. "
-                  f"Their availabilities don't match the site {self.name}")
+            # print(f"Just double-checked {person.name}'s availabilities. "
+            #       f"Their availabilities don't match the site {self.name}")
             return False
 
         # Situation 1
         if self.has_site_leader and person.leads_site:
+            # print(f"{self.name} already has a site leader: {self.get_SL_name()}")
             return False
 
         # Situation 2
         if person.in_staff and not person.leads_site:
-            if not self.has_site_leader:
-                raise Exception("A SiteLeader has not been added to "
-                                f"{self.name} yet. You cannot add a regular "
-                                "StaffMember.")
+            # if not self.has_site_leader:
+            #     raise Exception("A SiteLeader has not been added to "
+            #                     f"{self.name} yet. You cannot add a regular "
+            #                     "StaffMember.")
             if self.get_num_staff() == MAX_STAFF_PER_SITE and person.in_staff:
                 return False
 
         # Situations 3 and 4
         if self.get_num_people() == MAX_PEOPLE_PER_SITE:
+            # print(f"{self.name} already has {MAX_PEOPLE_PER_SITE} people")
             return False
 
         # Situation 5
         if (self.get_num_people() == MAX_PEOPLE_PER_SITE-1 and
-              not self.has_driver and not person.drives):
+            not self.has_driver and not person.drives):
+            print(f"We cannot add {person.name} (non-driver) to {self.name} "
+                  "when the site does not have a single driver.")
             return False
 
         return True
@@ -526,6 +555,9 @@ class Site:
             person for person in self.members if person.leads_site])
         self.has_driver = any([
             person for person in self.members if person.drives])
+        self.has_nonSL_staff_member = any([
+            person for person in self.members if (not person.leads_site and
+                                                  person.in_staff)])
 
         num_staff = self.get_num_staff()
         num_nonstaff = self.get_num_nonstaff()
@@ -642,6 +674,18 @@ class Site:
             member.assigned_site = None
         self.members = []
         self.update_booleans()
+
+    def __str__(self) -> str:
+        string = ""
+        string += f"Site Name: {self.name}\n"
+        string += f"Site ID: {self.id}\n"
+        string += f"Site Time: {self.time}\n"
+        string += f"Site District: {self.district.name}\n"
+        string += f"Site Members: '{", ".join(self.get_member_names())}'\n"
+        string += f"Has a site leader: {self.has_site_leader}\n"
+        string += f"Has a driver: {self.has_driver}\n"
+        string += f"Is full: {self.is_full}\n"
+        return string
 
 
 @typechecked
@@ -776,7 +820,7 @@ class SiteArrangement:
                 site_map.loc[id, 'Driver(s)'] = ', '.join(driver_names)
 
             # Get the staff member name
-            if site.get_num_staff() == 2:
+            if site.has_nonSL_staff_member:
                 non_SL_staff_name = site.get_non_SL_staff_name()
                 site_map.loc[id, 'Staff Member'] = non_SL_staff_name
 
@@ -794,10 +838,12 @@ class SiteArrangement:
 
 
     def __str__(self):
+        return_string = ""
         for id in self.site_assignments.keys():
             site = ids_to_sites[id]
             names = self.site_assignments[id]
-            return (f"Site ID #{id}: {site.name}\nPeople: {names}")
+            return_string += f"Site ID #{id}: {site.name}\nPeople: {names}\n"
+        return return_string
 
 @typechecked
 def get_day_and_time(string_day_and_time:str) -> Tuple[str, str]:
@@ -891,7 +937,7 @@ def order_by_availabilities(people:List[DecalMember]) -> List[DecalMember]:
         List[DecalMember]: people ordered by increasing number of
                             availabilities
     """
-    return sorted(people, key=lambda x: x.availabilities)
+    return sorted(people, key=lambda x: len(x.availabilities))
 
 @typechecked
 def create_priority_list(people:List[DecalMember]) -> List[DecalMember]:
@@ -943,7 +989,7 @@ def create_priority_list(people:List[DecalMember]) -> List[DecalMember]:
 
         return least_availabilities + drives + remaining
 
-    sls_only = order_group(
+    sls_only = order_by_availabilities(
         [person for person in people if person.leads_site])
     staff_no_SL = order_group(
         [person for person in people if person.in_staff and
@@ -951,6 +997,7 @@ def create_priority_list(people:List[DecalMember]) -> List[DecalMember]:
     decal_no_staff = order_group(
         [person for person in people if not person.in_staff])
 
+    print([person.name for person in sls_only + staff_no_SL + decal_no_staff])
     return sls_only + staff_no_SL + decal_no_staff
 
 @typechecked
@@ -1108,13 +1155,12 @@ def check_if_each_person_has_more_than_one_availability() -> bool:
                 no_availabilities['site leaders'].append(name)
 
     # Create the exception message
-    exception_msg = (
-        "The following people did not provide any availabilities: \n")
-    for person_type, names in no_availabilities.items():
-        exception_msg += f"{person_type}: {', '.join(names)}\n"
-
     if not sum([lst for lst in no_availabilities.values()], []) == []:
-        raise Exception(exception_msg)
+        exception_msg = (
+        "The following people did not provide any availabilities: \n")
+        for person_type, names in no_availabilities.items():
+            exception_msg += f"{person_type}: {', '.join(names)}\n"
+        _act_on_check_exception_message(exception_msg)
 
     return True
 
@@ -1137,13 +1183,13 @@ def check_for_optimal_number_of_people(
         num_people_message = (
             "There are not enough people for each site!\n" +
             num_people_message)
-        raise Exception(num_people_message)
+        _act_on_check_exception_message(num_people_message)
 
     elif num_people > max_people_allowed:
         num_people_message = (
             "There are too many people!\n" +
             num_people_message)
-        raise Exception(num_people_message)
+        _act_on_check_exception_message(num_people_message)
 
     else:
         pass
@@ -1161,8 +1207,9 @@ def check_for_optimal_number_of_people(
                                           MAX_PEOPLE_PER_SITE)
 
         if ((num_people_available < min_people_required_during_time and
-             mode == 'full') or (num_people_available >
-                                 max_people_allowed_during_time)):
+             mode == 'full')
+            # or (num_people_available > max_people_allowed_during_time)
+            ):
 
             num_people_available_msg += (
                 f"There are {num_sites_during_time} sites which take place on "
@@ -1171,9 +1218,7 @@ def check_for_optimal_number_of_people(
                 f"available during this time. However, there are "
                 f" {num_people} people who are available.\n")
 
-    if num_people_available_msg != "":
-        raise Exception(num_people_available_msg)
-
+    _act_on_check_exception_message(num_people_available_msg)
 
 def check_for_optimal_number_of_SLs(mode: Literal['partial', 'full']) -> None:
     """
@@ -1191,13 +1236,13 @@ def check_for_optimal_number_of_SLs(mode: Literal['partial', 'full']) -> None:
         num_sl_message = (
             "There are not enough site leaders!\n" +
             num_sl_message)
-        raise Exception(num_sl_message)
+        _act_on_check_exception_message(num_sl_message)
 
     elif num_SLs > num_sites:
         num_sl_message = (
             "There are too many site leaders!\n" +
             num_sl_message)
-        raise Exception(num_sl_message)
+        _act_on_check_exception_message(num_sl_message)
 
     else:
         pass
@@ -1211,8 +1256,9 @@ def check_for_optimal_number_of_SLs(mode: Literal['partial', 'full']) -> None:
         num_sites_during_time = len(site_list) #num_SLs_needed = num_sites_during_time
 
         if ((num_SLs_available < num_sites_during_time and
-             mode == 'full') or (num_SLs_available >
-                                 num_sites_during_time)):
+             mode == 'full')
+            # or (num_SLs_available > num_sites_during_time)
+            ):
             num_SLs_available_msg += (
                 f"There are {num_sites_during_time} sites which take place on "
                 f"{day_and_time}. This requires exactly "
@@ -1220,8 +1266,8 @@ def check_for_optimal_number_of_SLs(mode: Literal['partial', 'full']) -> None:
                 f"However, there are {num_SLs_available} people who are "
                 "available.\n")
 
-    if num_SLs_available_msg != "":
-        raise Exception(num_SLs_available_msg)
+    _act_on_check_exception_message(num_SLs_available_msg)
+
 
 def check_for_optimal_number_of_non_SLs(
     mode: Literal['partial', 'full']) -> None:
@@ -1242,13 +1288,13 @@ def check_for_optimal_number_of_non_SLs(
         num_nonSL_message = (
             "There are not enough NON site leaders!\n" +
             num_nonSL_message)
-        raise Exception(num_nonSL_message)
+        _act_on_check_exception_message(num_nonSL_message)
 
     elif num_non_SL > max_non_SL_allowed:
         num_nonSL_message = (
             "There are too many NON site leaders!\n" +
             num_nonSL_message)
-        raise Exception(num_nonSL_message)
+        _act_on_check_exception_message(num_nonSL_message)
 
     else:
         pass
@@ -1280,8 +1326,9 @@ def check_for_optimal_number_of_non_SLs(
                                          (MAX_PEOPLE_PER_SITE - 1))
 
         if ((num_non_SLs_available < min_nonSL_required_during_time and
-             mode == 'full') or (num_non_SLs_available >
-                                 max_nonSL_allowed_during_time)):
+             mode == 'full')
+            # or (num_non_SLs_available > max_nonSL_allowed_during_time)
+            ):
             num_non_SLs_available_msg += (
                 f"There are {num_sites_during_time} sites which take place on "
                 f"{day_and_time}. This requires a total of "
@@ -1291,18 +1338,18 @@ def check_for_optimal_number_of_non_SLs(
                 f"{num_non_SLs_available} people who are available instead.\n")
 
         # non-SL staff specifically
-        max_nonSL_staff_allowed_during_time = (num_sites_during_time *
-                                               (MAX_STAFF_PER_SITE-1))
-        if (num_non_SL_staff_available > max_nonSL_staff_allowed_during_time):
-            num_non_SL_staff_available_msg += (
-                "There are too many non-SL staff members who are available on "
-                f"{day_and_time}.\n")
-            num_non_SL_staff_available_msg += (
-                f"There are {num_sites_during_time} sites which take place on "
-                f"{day_and_time}. This allows a maximum of "
-                f"{max_nonSL_staff_allowed_during_time} non-SL staff members "
-                "who are available during this time. However, there are "
-                f"{num_non_SLs_available} such people who are available.\n")
+        # max_nonSL_staff_allowed_during_time = (num_sites_during_time *
+        #                                        (MAX_STAFF_PER_SITE-1))
+        # if (num_non_SL_staff_available > max_nonSL_staff_allowed_during_time):
+        #     num_non_SL_staff_available_msg += (
+        #         "There are too many non-SL staff members who are available on "
+        #         f"{day_and_time}.\n")
+        #     num_non_SL_staff_available_msg += (
+        #         f"There are {num_sites_during_time} sites which take place on "
+        #         f"{day_and_time}. This allows a maximum of "
+        #         f"{max_nonSL_staff_allowed_during_time} non-SL staff members "
+        #         "who are available during this time. However, there are "
+        #         f"{num_non_SLs_available} such people who are available.\n")
 
 
 
@@ -1313,8 +1360,9 @@ def check_for_optimal_number_of_non_SLs(
                                             MAX_NONSTAFF_PER_SITE)
 
         if ((num_nonstaff_available < min_nonstaff_required_during_time and
-            'mode' == 'full') or (num_nonstaff_available >
-                                 max_nonstaff_allowed_during_time)):
+            'mode' == 'full')
+            # or (num_nonstaff_available > max_nonstaff_allowed_during_time)
+            ):
 
             num_nonstaff_available_msg += (
                 f"There are {num_sites_during_time} sites which take place on "
@@ -1325,16 +1373,10 @@ def check_for_optimal_number_of_non_SLs(
                 f"{num_nonstaff_available} such people who are available "
                 "instead.\n")
 
-
-    if num_non_SLs_available_msg != "":
-        raise Exception(num_non_SLs_available_msg)
-
-    if num_non_SL_staff_available_msg != "":
-        raise Exception(num_non_SL_staff_available_msg)
-
-    if num_nonstaff_available_msg != "":
-        raise Exception(num_nonstaff_available_msg)
-
+    for exception_msg in [num_non_SLs_available_msg,
+                          num_non_SL_staff_available_msg,
+                          num_nonstaff_available_msg]:
+        _act_on_check_exception_message(exception_msg)
 
 
 def check_for_edge_cases(mode: Literal['partial', 'full']) -> None:
@@ -1361,11 +1403,49 @@ def check_for_edge_cases(mode: Literal['partial', 'full']) -> None:
 
 
 
+num_site_arrangements_found = 0
+least_unassigned = 100000
+best_site_arrangement = None
+unassigned_best_site_arrangement = []
+available_sites = []
+num_combinations_since_best = 0
+
+def lp_solver():
+    """
+    Conditions:
+
+    FULL
+    Site
+    5. adding person means their availability matches
+    6. each person is assigned
+    2. 1 SL exactly
+    1. at least one driver
+    3. <= 1 non-staff SL
+    4. 4-5 people
+
+    Partial
+    0. each person has availability matching
+    1. each person is assigned
+    2. <= 1 SL per site
+    3. 4-5 people
+    4. <= 1 non-staff SL
+
+    cool:
+    1. minimize stdev of number of drivers
+    2.
+
+
+
+
+    """
 @typechecked
 def create_site_arrangements(
     people: List[DecalMember],
     mode: Literal['full', 'partial'],
-    spaces:str="") -> List[SiteArrangement]:
+    spaces:str="",
+    start_time: Optional[int] = None,
+    timeout: Optional[int] = None,
+    cutoff: Optional[int] = None) -> List[SiteArrangement]:
     """
     Creates a list of SiteArrangement objects.
 
@@ -1389,6 +1469,17 @@ def create_site_arrangements(
     Returns:
         List[SiteArrangement]: _description_
     """
+    global num_site_arrangements_found, least_unassigned
+    global best_site_arrangement, unassigned_best_site_arrangement
+    global available_sites, num_combinations_since_best
+
+    if cutoff and num_site_arrangements_found >= cutoff:
+        return []
+
+    if start_time and timeout and time.time() - start_time > timeout:
+        return []
+
+
 
     check_for_edge_cases(mode)
     # Initialize an empty list of working site arrangements
@@ -1398,9 +1489,11 @@ def create_site_arrangements(
     priority_list = create_priority_list(
         [person for person in people if person.assigned_site is None])
 
+
     # Base Case(s)
     # 'full' - each site is full, each person has been assigned
     # 'partial' - each person has been assigned
+
 
     # First check that all sites are valid
     try:
@@ -1413,17 +1506,22 @@ def create_site_arrangements(
                 if check_all_sites_are_full():
                     new_site_arrangement = SiteArrangement()
                     new_site_arrangement.freeze()
-                    print(f"Created a site arrangement.")
+                    print(f"Created a {mode} site arrangement.")
                     # logging.debug("Created a site arrangement")
                     # for name, site in names_to_sites.items():
                     #     logging.debug(f"{name} member(s): "
                     #                   f"{site.get_member_names()}")
+                    num_site_arrangements_found += 1
                     return [new_site_arrangement]
                 else:
                     return [] # do not raise an Exception here! Rmemeber the 3/5 situation
             else:
                 new_site_arrangement = SiteArrangement()
                 new_site_arrangement.freeze()
+                print(f"Created a {mode} site arrangement.")
+
+                num_site_arrangements_found += 1
+
                 # logging.debug("Created a site arrangement")
                 # for name, site in names_to_sites.items():
                 #     logging.debug(f"{name}'s {site.get_num_people()} "
@@ -1450,6 +1548,7 @@ def create_site_arrangements(
         # Add the person
         if site.validate_person(next_unassigned_person):
             site.add_member(next_unassigned_person)
+            print(f"{site.name} is taking {next_unassigned_person.name}")
             # logging.debug(
             #     f"{spaces}Added {next_unassigned_person.name} to {site.name}")
 
@@ -1462,12 +1561,52 @@ def create_site_arrangements(
             # Remove the person from the site
             # Continue onwards to the next site in the list of priority_sites
             site.remove_member(next_unassigned_person)
+            num_combinations_since_best += 1
             # logging.debug(
             #     f"{spaces}Removed {next_unassigned_person.name} from "
             #       f"{site.name}")
 
     # In the case that there are no people left and the sites are not valid,
     # an empty list will be returned.
+    assigned_people = [person for person in list(names_to_people.values())
+                       if person.assigned_site is not None]
+    unassigned_people = [person for person in list(names_to_people.values())
+                       if person.assigned_site is None]
+    print(f"Assigned People({len(assigned_people)}):")
+    # for person in assigned_people:
+    #     print(f"{person.name} --> {person.assigned_site.name}")
+
+    print(f"Unassigned People: ")
+    for person in unassigned_people:
+        print(f"{person.name}: {person.availabilities}")
+    if len(priority_list) < least_unassigned:
+        new_site_arrangement = SiteArrangement()
+        new_site_arrangement.freeze()
+        best_site_arrangement = new_site_arrangement
+        least_unassigned = len(priority_list)
+        unassigned_best_site_arrangement = [
+            f"{person.name}({len(person.availabilities)})"
+            for person in priority_list]
+        available_sites = [site for site in list(ids_to_sites.values())
+                           if not site.has_site_leader]
+        num_combinations_since_best = 0
+
+
+    print("num_site_arrangements_found:", num_site_arrangements_found)
+    print(f"Least unassigned is {least_unassigned}")
+    print(f"Best site arrangement: ")
+    # print([f" {site_id}: {site.name}" for site_id, site in ids_to_sites.items()])
+    print(best_site_arrangement.site_assignments)
+    print("Available sites: ")
+    for site in available_sites:
+        print(site.name, site.time)
+    print("Unassigned Best:", unassigned_best_site_arrangement)
+    print(f"num_combinations_since_best: {num_combinations_since_best}")
+
+
+    # for person in unassigned_people:
+    #     print(person.name)
+    print("-"*25)
     return working_site_arrangements
 
 @typechecked
@@ -1490,7 +1629,6 @@ def remove_from_times_to_sites(time: str,
             times_to_sites.pop(time)
         else:
             times_to_sites[time].remove(site)
-
 
 
 def initialize_empty_site_map() -> pd.DataFrame:
