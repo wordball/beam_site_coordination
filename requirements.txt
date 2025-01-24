@@ -5,8 +5,8 @@
 # Altered afterwards by Aditya
 # altair==5.0.1
 # arrow-cpp
-libcurl
-libprotobuf
+# libcurl
+# libprotobuf
 numpy
 openpyxl
 openssl
