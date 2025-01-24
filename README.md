@@ -13,7 +13,7 @@ across the Bay Area given certain requirements.
 Included in this github repository are test files along with python
 files for the creation of different classes and data preprocessing of
 input excel files. If you are interested in using this program, feel free to
-use this [link](beamsitecoordination.streamlit.app)
+use the [link](https://beamsitecoordination.streamlit.app/)
 <br><br><br>
 For site coords, this [folder](
     https://drive.google.com/drive/folders/1SlLPxKwhpydhOq3QXoMPK-MlppTY8rFf?usp=drive_link)
