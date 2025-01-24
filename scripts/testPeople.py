@@ -2,7 +2,9 @@ import unittest
 from classes import *
 from data_preprocessing import (extract_availabilities_from_string,
                                 standardize_day_and_time,
-                                read_populated_site_map)
+                                read_populated_site_map,
+                                read_google_form_responses,
+                                read_empty_site_map)
 import sys
 from pathlib import Path
 import os
@@ -280,6 +282,24 @@ class TestSiteArrangement(unittest.TestCase):
         self.assertIn(member, site.members)
         eliminate_everything()
 
+    def test_order_by_availabilities(self):
+        empty_site_map = pd.read_excel("C:/Users/aditya/Desktop/my_projects/"
+                                       "beam/site_leading/github_script/"
+                                       "beam_site_coordination/tests/test_f23"
+                                       "/edited/v1/empty_site_map.xlsx")
+        sm = read_empty_site_map(empty_site_map)
+        site_leaders = pd.read_excel("C:/Users/aditya/Desktop/my_projects"
+                                     "/beam/site_leading/github_script/"
+                                     "beam_site_coordination/tests/test_f23"
+                                     "/edited/v2/site_leaders.xlsx")
+        read_google_form_responses(site_leaders, SiteLeader, 30, False)
+        lst = order_by_availabilities(list(names_to_site_leaders.values()))
+        expected_num_availabilities_list = [
+            2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 6, 7, 9, 9, 9]
+        self.assertListEqual([len(person.availabilities) for person in lst],
+                             expected_num_availabilities_list)
+        eliminate_everything()
+
     def test_create_priority_list(self):
         """
         Create priority lists.
@@ -291,7 +311,7 @@ class TestSiteArrangement(unittest.TestCase):
         more_than_three = three_availabilities + ["1:00 PM", "4:30 PM",
                                                   "6:30 PM"]
         way_more_than_three = more_than_three + ["8:00 PM"]
-        max_availabilities = more_than_three + ["10:00 PM"]
+        max_availabilities = way_more_than_three + ["10:00 PM"]
 
         all_availabilities = [one_availability, three_availabilities,
                               more_than_three, way_more_than_three,
@@ -320,7 +340,7 @@ class TestSiteArrangement(unittest.TestCase):
 
         # After creating each instance, determine the expected
         # priority list order prior to shuffling
-        expected_priority_SL = [sls[0], sls[1], sls[3], sls[2], sls[4]]
+        expected_priority_SL = [sls[0], sls[1], sls[2], sls[3], sls[4]]
         expected_priority_nonSL_staff = [nonSL_staff[0], nonSL_staff[1],
                                          nonSL_staff[2], nonSL_staff[4],
                                          nonSL_staff[3]]
@@ -649,7 +669,7 @@ class TestSiteArrangement(unittest.TestCase):
 
     # @unittest.skip("LOL")
     def test_unfreeze(self):
-        save_dir = ROOT / 'tests' / 'test_unfreeze'
+        save_dir = ROOT / 'tests' / 'test_dataframes' / 'test_unfreeze'
         save_path =  save_dir / 'obtained_unfreeze_case0.xlsx'
         comparison_path = save_dir / 'expected_unfreeze_case0.xlsx'
         print(f"Comparison path: {comparison_path}")
@@ -724,7 +744,8 @@ class TestSiteArrangement(unittest.TestCase):
                                   False,
                                   [other_time])
 
-        directory = ROOT / 'tests' / 'test_read_populated_site_map'
+        directory = (ROOT / 'tests' / 'test_dataframes' /
+                     'test_read_populated_site_map')
         site_map = pd.read_excel(directory /
                                  'mini_site_map.xlsx')
 
@@ -1068,7 +1089,7 @@ class testEssentialFunction(unittest.TestCase):
 class testDataPreprocessing(unittest.TestCase):
     def test_extract_availabilities_from_string(self):
         sp24_decal_responses = pd.read_excel(str(ROOT / 'tests' / 'test_sp24' /
-                                     'sp24_decal_responses.xlsx'))
+                                     'source' / 'sp24_decal_responses.xlsx'))
         time_question = ('What time slots are you available to go to site?  '
                          'Please check all the options that are available for '
                          'you, not just the ones that are the most '
