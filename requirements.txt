@@ -16,6 +16,7 @@ pandas
 # protobuf
 # pyarrow
 # python
+pulp
 typeguard
 typing_extensions
 xlsxwriter
