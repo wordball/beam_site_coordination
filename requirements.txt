@@ -16,7 +16,7 @@ pandas
 # protobuf
 # pyarrow
 # python
-# typeguard
+typeguard
 typing_extensions
 xlsxwriter
 streamlit
