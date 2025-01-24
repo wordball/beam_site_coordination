@@ -4,7 +4,7 @@
 # created-by: conda 24.11.3 (Saved in a commit)
 # Altered afterwards by Aditya
 # altair==5.0.1
-arrow-cpp
+# arrow-cpp
 libcurl
 libprotobuf
 numpy
