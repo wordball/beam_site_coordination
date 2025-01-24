@@ -4,6 +4,39 @@ import pandas as pd
 from main3 import *
 import io
 
+num_clicks = 0
+if 'clicked' not in st.session_state:
+    st.session_state.clicked = False
+
+if 'downloaded_logs' not in st.session_state:
+    st.session_state.downloaded_logs = False
+
+if 'downloaded_results' not in st.session_state:
+    st.session_state.downloaded_results = False
+
+
+def click_run_button():
+    global num_clicks
+    st.session_state.clicked = True
+    num_clicks += 1
+
+def reset_session_state_vars_if_necessary():
+    if st.session_state.downloaded_logs and st.session_state.downloaded_results:
+        st.session_state.clicked=False
+        st.session_state.downloaded_logs=False
+        st.session_state.downloaded_results=False
+
+def click_downloaded_logs():
+    st.session_state.downloaded_logs=False
+    reset_session_state_vars_if_necessary()
+
+
+def click_downloaded_results():
+    st.session_state.downloaded_results=False
+    reset_session_state_vars_if_necessary()
+
+
+
 
 def excel_download_button(dfs: pd.DataFrame,
                           file_name: str) -> None:
@@ -18,7 +51,7 @@ def excel_download_button(dfs: pd.DataFrame,
 
     download_button = st.download_button(
         "Download generated site maps as an Excel file",
-        data=buffer, file_name=file_name)
+        data=buffer, file_name=file_name, on_click=click_downloaded_results)
     return download_button
 
 
@@ -86,15 +119,16 @@ st.write(
 
 st.write("# ")
 st.write("# Generate Site Maps")
-counter = 0
 
 
-if st.button("Run"):
+st.button("Run", on_click=click_run_button)
+
+if st.session_state.clicked:
     output_buffer = io.StringIO()
     sys.stdout = output_buffer
 
-    counter+=1
-    if counter > 0:
+    num_clicks+=1
+    if num_clicks > 0:
         eliminate_everything()
 
     if not all(file for file in files):
@@ -112,6 +146,7 @@ if st.button("Run"):
         useful_details = st.download_button(
             label="Download Useful Details",
             data=log_contents,
+            on_click=click_downloaded_logs,
             file_name="logs.txt",
             mime="text/plain")
 
