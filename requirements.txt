@@ -19,3 +19,4 @@ pandas
 # typeguard
 typing_extensions
 xlsxwriter
+streamlit
