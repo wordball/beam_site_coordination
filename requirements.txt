@@ -1,23 +1,8 @@
-# This file may be used to create an environment using:
-# $ conda create --name <env> --file <this file>
-# platform: win-64
-# created-by: conda 24.11.3 (Saved in a commit)
-# Altered afterwards by Aditya
-# altair==5.0.1
-# arrow-cpp
-# libcurl
-# libprotobuf
 numpy
-# openpyxl
-# openssl
 pandas
-# pillow
-# pip
-# protobuf
-# pyarrow
-# python
 pulp
+streamlit
 typeguard
 typing_extensions
 xlsxwriter
-streamlit
+openpyxl
