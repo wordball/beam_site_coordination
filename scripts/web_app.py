@@ -14,26 +14,29 @@ if 'downloaded_logs' not in st.session_state:
 if 'downloaded_results' not in st.session_state:
     st.session_state.downloaded_results = False
 
+if 'reset' not in st.session_state:
+    st.session_state.reset = False
+
 
 def click_run_button():
     global num_clicks
     st.session_state.clicked = True
     num_clicks += 1
 
-def reset_session_state_vars_if_necessary():
-    if st.session_state.downloaded_logs and st.session_state.downloaded_results:
-        st.session_state.clicked=False
-        st.session_state.downloaded_logs=False
-        st.session_state.downloaded_results=False
-
 def click_downloaded_logs():
     st.session_state.downloaded_logs=False
-    reset_session_state_vars_if_necessary()
-
 
 def click_downloaded_results():
     st.session_state.downloaded_results=False
-    reset_session_state_vars_if_necessary()
+
+def click_reset():
+    st.session_state.reset = True
+    if st.session_state.reset:
+        st.session_state.clicked=False
+        st.session_state.downloaded_logs=False
+        st.session_state.downloaded_results=False
+    st.session_state.reset = False
+
 
 
 
@@ -50,7 +53,7 @@ def excel_download_button(dfs: pd.DataFrame,
         writer.close()
 
     download_button = st.download_button(
-        "Download generated site maps as an Excel file",
+        "Download generated site maps as an Excel file (multiple sheets)",
         data=buffer, file_name=file_name, on_click=click_downloaded_results)
     return download_button
 
@@ -117,9 +120,8 @@ st.write(
 )
 
 
-st.write("# ")
-st.write("# Generate Site Maps")
-
+st.write("### ")
+st.write("### Generate Site Maps")
 
 st.button("Run", on_click=click_run_button)
 
@@ -144,11 +146,13 @@ if st.session_state.clicked:
         log_contents = output_buffer.getvalue()
         sys.stdout = sys.__stdout__
         useful_details = st.download_button(
-            label="Download Useful Details",
+            label="Download useful run details",
             data=log_contents,
             on_click=click_downloaded_logs,
             file_name="logs.txt",
             mime="text/plain")
+
+st.button("Reset", on_click=click_reset)
 
 
 
