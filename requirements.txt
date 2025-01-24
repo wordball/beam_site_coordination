@@ -3,8 +3,8 @@
 # platform: win-64
 # created-by: conda 24.11.3 (Saved in a commit)
 # Altered afterwards by Aditya
-altair==5.0.1
-arrow-cpp
+# altair==5.0.1
+arrow-cpp==17.0.0
 charset-normalizer==3.3.2
 docutils==0.18.1
 et_xmlfile==1.1.0
