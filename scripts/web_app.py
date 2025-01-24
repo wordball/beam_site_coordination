@@ -4,6 +4,7 @@ import pandas as pd
 from main3 import *
 import io
 
+
 def excel_download_button(dfs: pd.DataFrame,
                           file_name: str) -> None:
     assert ".xlsx" in file_name, "File name must have the '.xlsx' extension"
@@ -14,9 +15,11 @@ def excel_download_button(dfs: pd.DataFrame,
                         sheet_name=f"Sheet{i+1}",
                         index=False)
         writer.close()
-        st.download_button("Download generated site maps as an Excel file",
-                            data=buffer,
-                            file_name=file_name)
+
+    download_button = st.download_button(
+        "Download generated site maps as an Excel file",
+        data=buffer, file_name=file_name)
+    return download_button
 
 
 st.write("# Instructions")
@@ -34,6 +37,8 @@ st.write(
     "again. \nIn that case, you need to choose one of the generated site maps "
     "and feed it in as input the next time you run this program."
 )
+
+
 st.write("### ")
 st.write("### Configuration")
 options = ["Site Leaders", "Staff members (Excluding Site Leaders)",
@@ -43,13 +48,15 @@ mappings = {options[0]: SiteLeader,
             options[2]: DecalMember}
 string_person_class = st.selectbox(
     "Who are you trying to assign to sites?", options=options)
-# int_number_trials = st.number_input("Desired number of generated site maps - No guarantees though :)")
 int_number_trials = st.slider(
     "Desired number of generated site maps - No guarantees though :)",
     min_value=1, max_value=20, value=1, step=1)
 int_time_tolerance = st.slider(
     "Time Tolerance", min_value=0, max_value=60, value=0, step=5)
 person_class = mappings[string_person_class]
+
+
+
 
 files = []
 f_type = ".xlsx"
@@ -66,26 +73,48 @@ if person_class == DecalMember:
     files.append(st.file_uploader(
         "Decal Member/Nonstaff Google Form Responses - "
         "Only include accepted decal members", type=".xlsx"))
+st.write("### ")
+st.write("### Warnings")
+st.write(
+    "1. Time tolerance should ideally be 0. This parameter represents how much "
+    "leeway you have if there's not enough people signed up for a time (spoiler alert: "
+    "you're going to have to assign some people who didn't sign up for it to that site).\n"
+    "2. The number of generated site arrangements is not guaranteed to be what you want.\n"
+    "3. This program relies on every single person filling out the google form (includes Site Coords)."
+)
 
 
 st.write("# ")
 st.write("# Generate Site Maps")
 counter = 0
+
+
 if st.button("Run"):
+    output_buffer = io.StringIO()
+    sys.stdout = output_buffer
+
     counter+=1
     if counter > 0:
         eliminate_everything()
 
     if not all(file for file in files):
-        st.error("You need to upload all the pertinent files!")
+        st.error("You need to upload/reupload all the pertinent files!")
     else:
         dfs = [pd.read_excel(files[i]) if len(files) >= i+1 else None
                 for i in range(4)]
 
-
         initial_read(*dfs, int_time_tolerance)
         outputs = master_func(person_class, int_number_trials)
-        excel_download_button(outputs, "output_site_map.xlsx")
+        outputs_db = excel_download_button(outputs, "output_site_map.xlsx")
+
+        log_contents = output_buffer.getvalue()
+        sys.stdout = sys.__stdout__
+        useful_details = st.download_button(
+            label="Download Useful Details",
+            data=log_contents,
+            file_name="logs.txt",
+            mime="text/plain")
+
 
 
 
