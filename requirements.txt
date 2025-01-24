@@ -8,14 +8,14 @@
 # libcurl
 # libprotobuf
 numpy
-openpyxl
-openssl
+# openpyxl
+# openssl
 pandas
-pillow
-pip
-protobuf
-pyarrow
-python
-typeguard
+# pillow
+# pip
+# protobuf
+# pyarrow
+# python
+# typeguard
 typing_extensions
 xlsxwriter
