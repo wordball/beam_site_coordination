@@ -137,19 +137,22 @@ if st.session_state.clicked:
     else:
         dfs = [pd.read_excel(files[i]) if len(files) >= i+1 else None
                 for i in range(4)]
+        try:
+            initial_read(*dfs, int_time_tolerance)
+            outputs = master_func(person_class, int_number_trials)
+            outputs_db = excel_download_button(outputs, "output_site_map.xlsx")
+            log_contents = output_buffer.getvalue()
+            sys.stdout = sys.__stdout__
+            useful_details = st.download_button(
+                label="Download useful run details",
+                data=log_contents,
+                on_click=click_downloaded_logs,
+                file_name="logs.txt",
+                mime="text/plain")
 
-        initial_read(*dfs, int_time_tolerance)
-        outputs = master_func(person_class, int_number_trials)
-        outputs_db = excel_download_button(outputs, "output_site_map.xlsx")
+        except Exception as e:
+            st.exception(e)
 
-        log_contents = output_buffer.getvalue()
-        sys.stdout = sys.__stdout__
-        useful_details = st.download_button(
-            label="Download useful run details",
-            data=log_contents,
-            on_click=click_downloaded_logs,
-            file_name="logs.txt",
-            mime="text/plain")
 
 st.button("Reset", on_click=click_reset)
 
