@@ -50,7 +50,6 @@ def excel_download_button(dfs: pd.DataFrame,
             df.to_excel(writer,
                         sheet_name=f"Sheet{i+1}",
                         index=False)
-        writer.close()
 
     download_button = st.download_button(
         "Download generated site maps as an Excel file (multiple sheets)",
