@@ -949,103 +949,105 @@ def read_google_form_responses(df: pd.DataFrame,
     history = district names separated by comma
     speaks_spanish = Yes/No --> True/False
     """
-    df = clean_google_form_responses(df, person_class, time_tolerance)
+    if len(df) == 0:
+        pass
+    else:
+        df = clean_google_form_responses(df, person_class, time_tolerance)
 
-    indices = df.index.tolist()
-    for row in indices:
+        indices = df.index.tolist()
+        for row in indices:
 
-        #FIXME: YOUR DATA MIGHT BE CORRUPTED!
-        name = df.loc[row, 'name']
-        if pd.isnull(name):
-            _handle_message_for_bad_data(row, person_class,
-                                         "the 'name'", continue_with_bad_data,
-                                         'No Name')
-            if continue_with_bad_data:
-                name = 'No Name'
-
-
-        try:
-            availabilities = df.loc[row, 'availabilities']
-            availabilities = _convert_string_list_to_list_of_strings(
-                availabilities)
-
-        except:
-            _handle_message_for_bad_data(row, person_class,
-                                         "the 'availabilities'",
-                                         continue_with_bad_data, "")
-
-            # Skip this person if they don't provide availabilities
-            if continue_with_bad_data:
-                print(f"We are not assigning {name} to a site because they "
-                      "did not provide any availabilities. Please tell them "
-                      "to fill out the google form again.")
-                continue
+            #FIXME: YOUR DATA MIGHT BE CORRUPTED!
+            name = df.loc[row, 'name']
+            if pd.isnull(name):
+                _handle_message_for_bad_data(row, person_class,
+                                            "the 'name'", continue_with_bad_data,
+                                            'No Name')
+                if continue_with_bad_data:
+                    name = 'No Name'
 
 
-        try:
-            drives1 = df.loc[row, 'drives1']
-            drives1 = _convert_yes_no_to_bool(drives1)
-        except:
-            _handle_message_for_bad_data(row, person_class,
-                                         "one of the driving",
-                                         continue_with_bad_data,
-                                         "No")
-            drives1 = False
-
-
-        try:
-            drives2 = df.loc[row, 'drives2']
-            drives2 = _convert_yes_no_to_bool(drives2)
-        except:
-            _handle_message_for_bad_data(row, person_class,
-                                         "one of the driving",
-                                         continue_with_bad_data,
-                                         "No")
-            drives2 = False
-        drives = drives1 or drives2
-
-
-        # Handle optional columns
-        kwargs = {}
-        if 'last_tb_test' in df.columns:
             try:
-                last_tb_test = _convert_last_tb_test_to_int_years(
-                    df.loc[row, 'last_tb_test'])
-                kwargs['last_tb_test'] = last_tb_test
+                availabilities = df.loc[row, 'availabilities']
+                availabilities = _convert_string_list_to_list_of_strings(
+                    availabilities)
+
             except:
                 _handle_message_for_bad_data(row, person_class,
-                                             "the 'last tb test'",
-                                             continue_with_bad_data,
-                                             "never")
+                                            "the 'availabilities'",
+                                            continue_with_bad_data, "")
 
-        if 'history' in df.columns:
+                # Skip this person if they don't provide availabilities
+                if continue_with_bad_data:
+                    print(f"We are not assigning {name} to a site because they "
+                        "did not provide any availabilities. Please tell them "
+                        "to fill out the google form again.")
+                    continue
+
+
             try:
-                history = _convert_string_list_to_list_of_strings(
-                    df.loc[row, 'history'])
-                kwargs['history'] = history
+                drives1 = df.loc[row, 'drives1']
+                drives1 = _convert_yes_no_to_bool(drives1)
             except:
                 _handle_message_for_bad_data(row, person_class,
-                                             "the 'past districts'",
-                                             continue_with_bad_data,
-                                             "n/a")
+                                            "one of the driving",
+                                            continue_with_bad_data,
+                                            "No")
+                drives1 = False
 
-        if 'speaks_spanish' in df.columns:
+
             try:
-                speaks_spanish = _convert_yes_no_to_bool(
-                    df.loc[row, 'speaks_spanish'])
-                kwargs['speaks_spanish'] = speaks_spanish
+                drives2 = df.loc[row, 'drives2']
+                drives2 = _convert_yes_no_to_bool(drives2)
             except:
                 _handle_message_for_bad_data(row, person_class,
-                                             "the 'speaks spanish'",
-                                             continue_with_bad_data,
-                                             "No")
+                                            "one of the driving",
+                                            continue_with_bad_data,
+                                            "No")
+                drives2 = False
+            drives = drives1 or drives2
 
-        new_person = person_class(name=name,
-                                  availabilities=availabilities,
-                                  can_drive=drives,
-                                  **kwargs)
-        # print(str(new_person))
 
+            # Handle optional columns
+            kwargs = {}
+            if 'last_tb_test' in df.columns:
+                try:
+                    last_tb_test = _convert_last_tb_test_to_int_years(
+                        df.loc[row, 'last_tb_test'])
+                    kwargs['last_tb_test'] = last_tb_test
+                except:
+                    _handle_message_for_bad_data(row, person_class,
+                                                "the 'last tb test'",
+                                                continue_with_bad_data,
+                                                "never")
+
+            if 'history' in df.columns:
+                try:
+                    history = _convert_string_list_to_list_of_strings(
+                        df.loc[row, 'history'])
+                    kwargs['history'] = history
+                except:
+                    _handle_message_for_bad_data(row, person_class,
+                                                "the 'past districts'",
+                                                continue_with_bad_data,
+                                                "n/a")
+
+            if 'speaks_spanish' in df.columns:
+                try:
+                    speaks_spanish = _convert_yes_no_to_bool(
+                        df.loc[row, 'speaks_spanish'])
+                    kwargs['speaks_spanish'] = speaks_spanish
+                except:
+                    _handle_message_for_bad_data(row, person_class,
+                                                "the 'speaks spanish'",
+                                                continue_with_bad_data,
+                                                "No")
+
+            new_person = person_class(name=name,
+                                    availabilities=availabilities,
+                                    can_drive=drives,
+                                    **kwargs)
+            # print(str(new_person))
     return df
 
 def _convert_string_list_to_list_of_strings(string_list:str) -> List[str]:
